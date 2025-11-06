@@ -1,0 +1,18 @@
+WELLCO CLIENT BRIEF
+====================
+
+CONTEXT
+-------
+  WellCo is an employer-sponsored healthcare ecosystem emphasizing digital-first prevention and whole-person health. Members are routinely engaged with materials on nutrition tips, balanced diet, healthy eating, Mediterranean diet, and high fiber meals, alongside guidance for weight management and weight loss. Programs frequently reference BMI, cholesterol, and lipid levels, with education tied to heart health within a broader cardiometabolic framework.
+
+ENGAGEMENT PRIORITIES
+---------------------
+  Movement-focused journeys promote sustainable physical activity through exercise, aerobic exercise, strength training, cardio, and cardiovascular fitness. Sleep health is a parallel priority with resources on sleep, sleep hygiene, restorative sleep, and sleep quality, including awareness for sleep apnea. Resilience and wellbeing services address stress, stress management, mindfulness, and meditation to support overall wellness, wellbeing, and mental health.
+
+CLINICAL FOCUS (ICD-10)
+-----------------------
+  WellCo’s quality reporting and care pathways prioritize members with type 2 diabetes mellitus (ICD-10 E11.9), essential hypertension (ICD-10 I10), and documented dietary counseling and surveillance (ICD-10 Z71.3). Educational content and care navigation emphasize diabetes fundamentals (diabetes, blood glucose, insulin resistance, glycemic control, HbA1c), hypertension control (hypertension, blood pressure), and heart health within cardiometabolic risk reduction. The goal is to improve adherence to preventive care across these cohorts and to sustain engagement with relevant health content.
+
+EXECUTIVE NOTE
+-------------
+  Populations of interest include E11.9, I10, and Z71.3. Content exposure spans nutrition and lifestyle education, physical activity, sleep health, and stress reduction, integrated to support durable behavior change and better member outcomes.
