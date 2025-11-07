@@ -1,4 +1,4 @@
-# AI System to Improve WellCo Outreach Effectivity
+# AI System to Optimize WellCo Outreach Strategy for Maximal ROI
 ## By *Vi Labs* 
 **Version:** v1 | **Date:** Nov 11, 2025 | **Authors**: Vi Labs Team (Or Yair, Allon Hammer, Gil Caspi)
 
