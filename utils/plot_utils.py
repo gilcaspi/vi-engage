@@ -113,27 +113,49 @@ def scatter_plot_series(
     return fig
 
 
-def plot_histograms(
-        df: pd.DataFrame,
-        columns: list[str],
-        color: Optional[str] = None,
-        nbins: int = 40,
-        plot_probability: bool = False,
-        title: Optional[str] = None,
+def plot_histogram(
+    df: pd.DataFrame,
+    column: str,
+    color: Optional[str] = None,
+    nbins: int = 40,
+    plot_probability: bool = False,
+    title: Optional[str] = None,
 ):
     if title is None:
-        title = "Histogram of " + ", ".join(columns)
+        title = f"Histogram of {column}"
 
     fig = go.Figure()
     histnorm = None if not plot_probability else "probability"
-    for col in columns:
-        if color and color in df.columns:
-            for val in df[color].dropna().unique():
-                subset = df[df[color] == val]
-                fig.add_trace(
-                    go.Histogram(x=subset[col], nbinsx=nbins, name=f"{col} - {val}", opacity=0.6, histnorm=histnorm)
+
+    if color and color in df.columns:
+        for val in df[color].dropna().unique():
+            subset = df[df[color] == val]
+            fig.add_trace(
+                go.Histogram(
+                    x=subset[column],
+                    nbinsx=nbins,
+                    name=f"{color} = {val}",
+                    opacity=0.6,
+                    histnorm=histnorm,
                 )
-        else:
-            fig.add_trace(go.Histogram(x=df[col], nbinsx=nbins, name=col, opacity=0.6, histnorm=histnorm))
-    fig.update_layout(barmode="overlay", template="plotly_white", title=title)
+            )
+    else:
+        fig.add_trace(
+            go.Histogram(
+                x=df[column],
+                nbinsx=nbins,
+                name=column,
+                opacity=0.6,
+                histnorm=histnorm,
+            )
+        )
+
+    fig.update_layout(
+        barmode="overlay",
+        template="plotly_white",
+        title=title,
+        xaxis_title=column,
+        yaxis_title="Count" if not plot_probability else "Probability",
+    )
+
     return fig
