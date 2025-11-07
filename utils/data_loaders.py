@@ -2,7 +2,9 @@ import os
 
 import pandas as pd
 
+from data.features import FEATURES_DIRECTORY_PATH
 from data.raw import RAW_DATA_DIRECTORY_PATH
+from data.raw.raw_data_column_names import MEMBER_ID_COLUMN
 
 
 def get_claims_df() -> pd.DataFrame:
@@ -36,3 +38,14 @@ def get_web_visits_df() -> pd.DataFrame:
     web_visits_df['timestamp'] = pd.to_datetime(web_visits_df['timestamp'], format="%Y-%m-%d %H:%M:%S")
     web_visits_df = web_visits_df.sort_values(by='timestamp')
     return web_visits_df
+
+
+def get_features_df(features_version: str) -> pd.DataFrame:
+    features_file_path = os.path.join(
+        FEATURES_DIRECTORY_PATH,
+        f'generated_features_{features_version}.csv'
+    )
+    features_df = pd.read_csv(features_file_path)
+
+    features_df.set_index(MEMBER_ID_COLUMN, inplace=True)
+    return features_df
