@@ -11,12 +11,18 @@ from sklearn.preprocessing import StandardScaler
 import plotly.graph_objects as go
 from artifacts import ARTIFACTS_DIRECTORY_PATH
 from data.raw.raw_data_column_names import MEMBER_ID_COLUMN, OUTREACH_COLUMN, CHURN_COLUMN, SIGNUP_DATE_COLUMN
+from preprocessing.members_matching import matching_members, fit_propensity_model, match_on_propensity
 from utils.data_loaders import get_features_df, get_churn_labels_df
 from sklift.models.models import TwoModels
 from xgboost import XGBClassifier
 
+import plotly.io as pio
+pio.renderers.default = "browser"
+
 from sklearn.calibration import calibration_curve
 import matplotlib.pyplot as plt
+
+from utils.metrics import c_for_benefit_from_pairs
 
 
 def plot_calibration_curve(
@@ -67,6 +73,8 @@ if __name__ == '__main__':
         random_state=42
     )
 
+    X_train_m, t_train_m, y_train_m, matched_idx_train, pairs_train = matching_members(X_train, t_train, y_train)
+
     baseline_model = LogisticRegression(
         max_iter=1000,
         class_weight='balanced',
@@ -76,7 +84,7 @@ if __name__ == '__main__':
         StandardScaler(),
         baseline_model,
     )
-    baseline_pipeline.fit(X_train, y_train)
+    baseline_pipeline.fit(X_train_m, y_train_m)
 
     y_pred = baseline_pipeline.predict(X_test)
     y_proba = baseline_pipeline.predict_proba(X_test)[:, 1]
@@ -132,13 +140,13 @@ if __name__ == '__main__':
     )
 
     treatment_pipeline.fit(
-        X_train[t_train == 1],
-        y_train[t_train == 1],
+        X_train_m[t_train_m == 1],
+        y_train_m[t_train_m == 1],
     )
 
     control_pipeline.fit(
-        X_train[t_train == 0],
-        y_train[t_train == 0],
+        X_train_m[t_train_m == 0],
+        y_train_m[t_train_m == 0],
     )
 
     treatment_proba = treatment_pipeline.predict_proba(X_test)[:, 1]
@@ -332,7 +340,7 @@ if __name__ == '__main__':
     print(f"[Cost={c}, Value={v}] ROI at optimal n: {roi:.2f}x | Expected net gain: ${best_net_value:.2f}")
 
     y_retention_test = 1 - y_test
-    y_retention_train = 1 - y_train
+    y_retention_train = 1 - y_train_m
 
     treatment_pipeline = make_pipeline(
         StandardScaler(),
@@ -370,22 +378,18 @@ if __name__ == '__main__':
         method='vanilla'
     )
 
-    uplift_model.fit(X_train, y_retention_train, treatment=t_train)
-    uplift_predictions = uplift_model.predict(X_test)
+    uplift_model.fit(X_train_m, y_retention_train, treatment=t_train_m)
+    uplift_predictions_test = uplift_model.predict(X_test)
     uplift_predictions_all = uplift_model.predict(X)
+    uplift_predictions_train_m = uplift_model.predict(X_train_m)
 
-
-    # Sort uplift descending
-    sorted_indices = np.argsort(-uplift_predictions_all)
+    sorted_indices = np.argsort(-uplift_all)
     uplift_sorted = uplift_all[sorted_indices]
     cum_gain = np.cumsum(uplift_sorted)
 
-    # Determine optimal n (reuse the one you already computed)
     optimal_n = int(np.argmax(cum_gain)) + 1
 
     fig = go.Figure()
-
-    # Main cumulative uplift line
     fig.add_trace(go.Scatter(
         x=np.arange(1, len(cum_gain) + 1),
         y=cum_gain,
@@ -394,8 +398,6 @@ if __name__ == '__main__':
         name='Cumulative Uplift',
         hovertemplate='Members Reached: %{x}<br>Cumulative Uplift: %{y:.2f}<extra></extra>'
     ))
-
-    # Optimal n vertical line
     fig.add_vline(
         x=optimal_n,
         line_dash="dash",
@@ -403,8 +405,6 @@ if __name__ == '__main__':
         annotation_text=f"Optimal n = {optimal_n}",
         annotation_position="top right"
     )
-
-    # Layout styling
     fig.update_layout(
         title=dict(
             text="Cumulative Uplift Curve (Optimal n Highlighted)",
@@ -417,8 +417,35 @@ if __name__ == '__main__':
         template="plotly_white",
         showlegend=False
     )
-
     fig.update_xaxes(showgrid=True, gridcolor='lightgray', zeroline=False)
     fig.update_yaxes(showgrid=True, gridcolor='lightgray', zeroline=False)
-
     fig.show()
+
+    output_outreach_suggestion_path = os.path.join(
+        output_predictions_dir_path,
+        f'outreach_suggestion_{version}.csv'
+    )
+    outreach_suggestion_df = predicted_uplift_all.head(optimal_n)
+    outreach_suggestion_df.to_csv(output_outreach_suggestion_path, index=False)
+
+    ps_model, e_train = fit_propensity_model(X_train, t_train)
+    e_test = ps_model.predict_proba(X_test)[:, 1]
+
+    matched_idx_test, pairs_test = match_on_propensity(e=e_test, t=t_test, caliper='auto', replace=False)
+
+    cfb = c_for_benefit_from_pairs(
+        y=y_test,
+        uplift=-uplift_predictions_test,
+        pairs=pairs_test
+    )
+    print(f"C-for-Benefit (test): {cfb:.3f} (pairs={len(pairs_test)})")
+
+
+    cfb_train = c_for_benefit_from_pairs(
+        y=y_train_m,
+        uplift=-uplift_predictions_train_m,
+        pairs=pairs_train,
+    )
+    print(f"C-for-Benefit (train): {cfb_train:.3f} (pairs={len(pairs_train)})")
+
+
