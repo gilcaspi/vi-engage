@@ -12,6 +12,8 @@ import plotly.graph_objects as go
 from artifacts import ARTIFACTS_DIRECTORY_PATH
 from data.raw.raw_data_column_names import MEMBER_ID_COLUMN, OUTREACH_COLUMN, CHURN_COLUMN, SIGNUP_DATE_COLUMN
 from utils.data_loaders import get_features_df, get_churn_labels_df
+from sklift.models.models import TwoModels
+from xgboost import XGBClassifier
 
 from sklearn.calibration import calibration_curve
 import matplotlib.pyplot as plt
@@ -190,7 +192,7 @@ if __name__ == '__main__':
     cum_ctrl = (t_ord == 0).astype(int).cumsum()
     cum_y_t = ((t_ord == 1) & (y_ord == 1)).astype(int).cumsum()
 
-    ctrl_rate = ((t_ord == 0) & (y_ord == 1)).sum() / max((t_ord == 0).sum(), 1)  # baseline churn in control
+    ctrl_rate = ((t_ord == 0) & (y_ord == 1)).sum() / max((t_ord == 0).sum(), 1)
     qini = cum_y_t - ctrl_rate * cum_treat
 
     optimal_n = int(np.argmax(qini)) + 1
@@ -198,8 +200,8 @@ if __name__ == '__main__':
 
     ## Uplift with cost and value assumptions
     for v in [20]:
-        for c in [0.6, 0.06, 0.006]:
-            uplift_sorted = np.sort(uplift)[::-1]
+        for c in [1, 0.6, 0.06, 0.006]:
+            uplift_sorted = np.sort(uplift_all)[::-1]
             net_curve = np.cumsum(v * uplift_sorted - c)
             optimal_n = int(np.argmax(net_curve)) + 1
             print(f"Optimal n considering cost = {optimal_n}")
@@ -222,8 +224,201 @@ if __name__ == '__main__':
             )
             fig.update_layout(
                 title=f"Net Value vs. n (Cost = {c}, Value per uplift unit = {v})",
+                title_x=0.5,
                 xaxis_title="Number of Members Outreached (sorted by uplift)",
                 yaxis_title="Cumulative Net Value (USD)",
                 template="plotly_white",
             )
             fig.show()
+
+
+    fig = go.Figure()
+    fig.add_trace(go.Histogram(
+        x=uplift_all,
+        nbinsx=50,
+        marker=dict(
+            color='rgba(0, 102, 204, 0.7)',
+            line=dict(width=1, color='white')
+        ),
+        name='Predicted uplift',
+        hovertemplate='Uplift: %{x:.3f}<br>Count: %{y}<extra></extra>'
+    ))
+
+    fig.add_vline(
+        x=np.mean(uplift_all),
+        line_dash="dash",
+        line_color="orange",
+        annotation_text=f"Mean = {np.mean(uplift_all):.3f}",
+        annotation_position="top right"
+    )
+
+    fig.add_vline(
+        x=np.median(uplift_all),
+        line_dash="dot",
+        line_color="green",
+        annotation_text=f"Median = {np.median(uplift_all):.3f}",
+        annotation_position="top left"
+    )
+
+    fig.update_layout(
+        title=dict(
+            text="Distribution of Predicted Uplift (Control − Treatment)",
+            x=0.5,
+            xanchor="center",
+            font=dict(size=20, family="Arial Black")
+        ),
+        xaxis_title="Predicted Uplift",
+        yaxis_title="Number of Members",
+        bargap=0.05,
+        template="plotly_white",
+        showlegend=False,
+    )
+
+    fig.update_xaxes(showgrid=True, gridcolor='lightgray', zeroline=False)
+    fig.update_yaxes(showgrid=True, gridcolor='lightgray', zeroline=False)
+
+
+    # Sort uplift descending
+    sorted_indices = np.argsort(-uplift_all)
+    uplift_sorted = uplift_all[sorted_indices]
+    cum_gain = np.cumsum(uplift_sorted)
+
+    # Determine optimal n (reuse the one you already computed)
+    optimal_n = int(np.argmax(cum_gain)) + 1
+
+    fig = go.Figure()
+
+    # Main cumulative uplift line
+    fig.add_trace(go.Scatter(
+        x=np.arange(1, len(cum_gain) + 1),
+        y=cum_gain,
+        mode='lines',
+        line=dict(width=2, color='rgba(0,102,204,0.9)'),
+        name='Cumulative Uplift',
+        hovertemplate='Members Reached: %{x}<br>Cumulative Uplift: %{y:.2f}<extra></extra>'
+    ))
+
+    # Optimal n vertical line
+    fig.add_vline(
+        x=optimal_n,
+        line_dash="dash",
+        line_color="red",
+        annotation_text=f"Optimal n = {optimal_n}",
+        annotation_position="top right"
+    )
+
+    # Layout styling
+    fig.update_layout(
+        title=dict(
+            text="Cumulative Uplift Curve (Optimal n Highlighted)",
+            x=0.5,
+            xanchor="center",
+            font=dict(size=20, family="Arial Black")
+        ),
+        xaxis_title="Number of Members (sorted by uplift)",
+        yaxis_title="Cumulative Expected Retention Gain",
+        template="plotly_white",
+        showlegend=False
+    )
+
+    fig.update_xaxes(showgrid=True, gridcolor='lightgray', zeroline=False)
+    fig.update_yaxes(showgrid=True, gridcolor='lightgray', zeroline=False)
+
+    fig.show()
+
+
+    best_net_value = net_curve[optimal_n - 1]
+    roi = best_net_value / (c * optimal_n) if c * optimal_n > 0 else float('inf')
+    print(f"[Cost={c}, Value={v}] ROI at optimal n: {roi:.2f}x | Expected net gain: ${best_net_value:.2f}")
+
+    y_retention_test = 1 - y_test
+    y_retention_train = 1 - y_train
+
+    treatment_pipeline = make_pipeline(
+        StandardScaler(),
+        XGBClassifier(
+            n_estimators=300,
+            max_depth=4,
+            learning_rate=0.05,
+            subsample=0.8,
+            colsample_bytree=0.8,
+            reg_lambda=1.0,
+            random_state=42,
+            n_jobs=-1,
+            eval_metric='logloss'
+        )
+    )
+
+    control_pipeline = make_pipeline(
+        StandardScaler(),
+        XGBClassifier(
+            n_estimators=300,
+            max_depth=4,
+            learning_rate=0.05,
+            subsample=0.8,
+            colsample_bytree=0.8,
+            reg_lambda=1.0,
+            random_state=42,
+            n_jobs=-1,
+            eval_metric='logloss'
+        )
+    )
+
+    uplift_model = TwoModels(
+        estimator_trmnt=treatment_pipeline,
+        estimator_ctrl=control_pipeline,
+        method='vanilla'
+    )
+
+    uplift_model.fit(X_train, y_retention_train, treatment=t_train)
+    uplift_predictions = uplift_model.predict(X_test)
+    uplift_predictions_all = uplift_model.predict(X)
+
+
+    # Sort uplift descending
+    sorted_indices = np.argsort(-uplift_predictions_all)
+    uplift_sorted = uplift_all[sorted_indices]
+    cum_gain = np.cumsum(uplift_sorted)
+
+    # Determine optimal n (reuse the one you already computed)
+    optimal_n = int(np.argmax(cum_gain)) + 1
+
+    fig = go.Figure()
+
+    # Main cumulative uplift line
+    fig.add_trace(go.Scatter(
+        x=np.arange(1, len(cum_gain) + 1),
+        y=cum_gain,
+        mode='lines',
+        line=dict(width=2, color='rgba(0,102,204,0.9)'),
+        name='Cumulative Uplift',
+        hovertemplate='Members Reached: %{x}<br>Cumulative Uplift: %{y:.2f}<extra></extra>'
+    ))
+
+    # Optimal n vertical line
+    fig.add_vline(
+        x=optimal_n,
+        line_dash="dash",
+        line_color="red",
+        annotation_text=f"Optimal n = {optimal_n}",
+        annotation_position="top right"
+    )
+
+    # Layout styling
+    fig.update_layout(
+        title=dict(
+            text="Cumulative Uplift Curve (Optimal n Highlighted)",
+            x=0.5,
+            xanchor="center",
+            font=dict(size=20, family="Arial Black")
+        ),
+        xaxis_title="Number of Members (sorted by uplift)",
+        yaxis_title="Cumulative Expected Retention Gain",
+        template="plotly_white",
+        showlegend=False
+    )
+
+    fig.update_xaxes(showgrid=True, gridcolor='lightgray', zeroline=False)
+    fig.update_yaxes(showgrid=True, gridcolor='lightgray', zeroline=False)
+
+    fig.show()
