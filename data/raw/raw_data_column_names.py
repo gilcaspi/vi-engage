@@ -1,4 +1,5 @@
 MEMBER_ID_COLUMN = "member_id"
 CHURN_COLUMN = "churn"
 OUTREACH_COLUMN = "outreach"
+SIGNUP_DATE_COLUMN = "signup_date"
 ICD10_CODE_COLUMN = "icd_code"
