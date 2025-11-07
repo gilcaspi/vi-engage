@@ -2,6 +2,8 @@ from typing import List, Optional
 
 import pandas as pd
 import plotly.graph_objects as go
+import seaborn as sns
+import matplotlib.pyplot as plt
 
 
 def pie_plot(
@@ -159,3 +161,21 @@ def plot_histogram(
     )
 
     return fig
+
+
+def plot_feature_correlation_heatmap(df: pd.DataFrame, title="Feature Correlation Heatmap"):
+    corr = df.corr(numeric_only=True)
+    plt.figure(figsize=(14, 10))
+    sns.heatmap(
+        corr,
+        cmap="coolwarm",
+        center=0,
+        annot=False,
+        fmt=".2f",
+        square=True,
+        linewidths=0.5,
+        cbar_kws={"shrink": 0.8, "label": "Correlation"},
+    )
+    plt.title(title, fontsize=16, weight="bold")
+    plt.tight_layout()
+    plt.show()

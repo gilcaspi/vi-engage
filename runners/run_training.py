@@ -17,6 +17,9 @@ from sklift.models.models import TwoModels
 from xgboost import XGBClassifier
 
 import plotly.io as pio
+
+from utils.plot_utils import plot_feature_correlation_heatmap
+
 pio.renderers.default = "browser"
 
 from sklearn.calibration import calibration_curve
@@ -75,6 +78,8 @@ if __name__ == '__main__':
 
     X_train_m, t_train_m, y_train_m, matched_idx_train, pairs_train = matching_members(X_train, t_train, y_train)
 
+    plot_feature_correlation_heatmap(X_train_m, "Correlation Heatmap - Matched Train Set")
+
     baseline_model = LogisticRegression(
         max_iter=1000,
         class_weight='balanced',
@@ -91,6 +96,8 @@ if __name__ == '__main__':
 
     print("AUC:", roc_auc_score(y_test, y_proba))
     print(classification_report(y_test, y_pred))
+
+    print("ROC AUC on Train:", roc_auc_score(y_train_m, baseline_pipeline.predict_proba(X_train_m)[:, 1]))
 
     version = 'v1'
     baseline_model_name = f'baseline_logistic_regression_model'
@@ -342,34 +349,40 @@ if __name__ == '__main__':
     y_retention_test = 1 - y_test
     y_retention_train = 1 - y_train_m
 
+    xgb_params = dict(
+        n_estimators=600,
+        max_depth=5,
+        learning_rate=0.03,
+        subsample=0.9,
+        colsample_bytree=0.9,
+        reg_lambda=2.0,
+        reg_alpha=0.5,
+        min_child_weight=3,
+        random_state=42,
+        n_jobs=-1,
+        eval_metric='logloss'
+    )
+
+    baseline_xgb_params = dict(
+        n_estimators=300,
+        max_depth=4,
+        learning_rate=0.05,
+        subsample=0.8,
+        colsample_bytree=0.8,
+        reg_lambda=1.0,
+        random_state=42,
+        n_jobs=-1,
+        eval_metric='logloss'
+    )
+
     treatment_pipeline = make_pipeline(
         StandardScaler(),
-        XGBClassifier(
-            n_estimators=300,
-            max_depth=4,
-            learning_rate=0.05,
-            subsample=0.8,
-            colsample_bytree=0.8,
-            reg_lambda=1.0,
-            random_state=42,
-            n_jobs=-1,
-            eval_metric='logloss'
-        )
+        XGBClassifier(**xgb_params)
     )
 
     control_pipeline = make_pipeline(
         StandardScaler(),
-        XGBClassifier(
-            n_estimators=300,
-            max_depth=4,
-            learning_rate=0.05,
-            subsample=0.8,
-            colsample_bytree=0.8,
-            reg_lambda=1.0,
-            random_state=42,
-            n_jobs=-1,
-            eval_metric='logloss'
-        )
+        XGBClassifier(**xgb_params)
     )
 
     uplift_model = TwoModels(
