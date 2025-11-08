@@ -1,4 +1,4 @@
-# AI System to Optimize WellCo Outreach Strategy for Maximal ROI
+# Increasing WellCo Member Retention with Vi Engage
 ## By *Vi Labs* 
 **Version:** v1 | **Date:** Nov 11, 2025 | **Authors**: Vi Labs Team (Or Yair, Allon Hammer, Gil Caspi)
 
