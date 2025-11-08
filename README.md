@@ -94,4 +94,17 @@ we needed to split our data to outreached group and control group with matching 
 ## 10. Deliverables Summary
 
 ## 11. Next Steps 
+1. **Model Optimization**  
+   - Evaluate alternative models  
+   - Tune hyperparameters  
+   - Test alternative uplift modeling approaches  
 
+2. **Feature Enrichment**  
+   - Improve web page classification using LLMs  
+
+3. **Code Refactoring**  
+   - Prepare Vi Engage for seamless integration with future clients  
+
+4. **Business Alignment**  
+   - Optimize expected ROI through a personalized outreach method for each member  
+   - Requires access to WellCo’s outreach cost structure and average member value
