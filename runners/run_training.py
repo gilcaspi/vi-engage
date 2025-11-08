@@ -442,6 +442,7 @@ def run_training():
 
     optimal_n = int(np.argmax(cum_gain)) + 1
     budget_n = 3959
+    optimal_n = budget_n
     print(f"Final optimal n = {optimal_n}")
 
     fig = go.Figure()
