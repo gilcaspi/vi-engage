@@ -18,13 +18,13 @@ https://www.python.org/downloads/release/python-31114/
     pip install -r requirements.txt
 ```
 
-### 
-1. Run features generation: 
+### 1.4 Run the analysis pipeline: 
+1. **Optional** - Run features generation: 
 ```bash
     python runners/run_features_generation.py
 ```    
 
-2. Data exploration notebook: 
+2. **Optional** - Data exploration notebook: 
 ```bash
     jupyter lab data_exploration.ipynb
 ```
