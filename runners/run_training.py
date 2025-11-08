@@ -18,6 +18,7 @@ from xgboost import XGBClassifier
 
 import plotly.io as pio
 
+from utils.explain_model import plot_logistic_regression_importance
 from utils.plot_utils import plot_feature_correlation_heatmap
 
 pio.renderers.default = "browser"
@@ -98,6 +99,15 @@ if __name__ == '__main__':
     print(classification_report(y_test, y_pred))
 
     print("ROC AUC on Train:", roc_auc_score(y_train_m, baseline_pipeline.predict_proba(X_train_m)[:, 1]))
+
+    importance_df, fig = plot_logistic_regression_importance(
+        model=baseline_pipeline,
+        X_train=X_train_m,
+        output_dir=os.path.join(ARTIFACTS_DIRECTORY_PATH, "explainability"),
+        top_n=30,
+        model_name="baseline_logistic_regression"
+    )
+    fig.show()
 
     version = 'v1'
     baseline_model_name = f'baseline_logistic_regression_model'
