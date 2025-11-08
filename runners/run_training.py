@@ -30,6 +30,16 @@ import matplotlib.pyplot as plt
 from utils.metrics import c_for_benefit_from_pairs
 
 
+TEST_MODE = os.getenv("TEST_MODE") == "1"
+if TEST_MODE:
+    pio.renderers.default = "json"
+
+
+def safe_show(fig: go.Figure):
+    if not TEST_MODE:
+        fig.show()
+
+
 def plot_calibration_curve(
         y_ground_truth: pd.Series,
         y_estimated_probability: pd.Series,
@@ -47,7 +57,7 @@ def plot_calibration_curve(
     plt.show()
 
 
-if __name__ == '__main__':
+def run_training():
     features_df = get_features_df(features_version='v1')
     churn_labels_df = get_churn_labels_df()
 
@@ -129,7 +139,7 @@ if __name__ == '__main__':
         top_n=30,
         model_name="baseline_logistic_regression"
     )
-    fig.show()
+    safe_show(fig)
 
     version = 'v1'
     baseline_model_name = f'baseline_logistic_regression_model'
@@ -211,7 +221,6 @@ if __name__ == '__main__':
     )
     predicted_uplift.to_csv(output_uplift_predictions_path, index=False)
 
-
     ## Uplift all members
     treatment_proba_all = treatment_pipeline.predict_proba(X)[:, 1]
     control_proba_all = control_pipeline.predict_proba(X)[:, 1]
@@ -253,7 +262,6 @@ if __name__ == '__main__':
             optimal_n = int(np.argmax(net_curve)) + 1
             print(f"Optimal n considering cost = {optimal_n}")
 
-
             fig = go.Figure()
             fig.add_trace(go.Scatter(
                 x=np.arange(1, len(net_curve) + 1),
@@ -276,8 +284,7 @@ if __name__ == '__main__':
                 yaxis_title="Cumulative Net Value (USD)",
                 template="plotly_white",
             )
-            fig.show()
-
+            safe_show(fig)
 
     fig = go.Figure()
     fig.add_trace(go.Histogram(
@@ -323,7 +330,6 @@ if __name__ == '__main__':
 
     fig.update_xaxes(showgrid=True, gridcolor='lightgray', zeroline=False)
     fig.update_yaxes(showgrid=True, gridcolor='lightgray', zeroline=False)
-
 
     # Sort uplift descending
     sorted_indices = np.argsort(-uplift_all)
@@ -371,8 +377,7 @@ if __name__ == '__main__':
     fig.update_xaxes(showgrid=True, gridcolor='lightgray', zeroline=False)
     fig.update_yaxes(showgrid=True, gridcolor='lightgray', zeroline=False)
 
-    fig.show()
-
+    safe_show(fig)
 
     best_net_value = net_curve[optimal_n - 1]
     roi = best_net_value / (c * optimal_n) if c * optimal_n > 0 else float('inf')
@@ -436,7 +441,7 @@ if __name__ == '__main__':
     cum_gain = np.cumsum(uplift_sorted)
 
     optimal_n = int(np.argmax(cum_gain)) + 1
-    optimal_n = 3959
+    budget_n = 3959
     print(f"Final optimal n = {optimal_n}")
 
     fig = go.Figure()
@@ -469,7 +474,7 @@ if __name__ == '__main__':
     )
     fig.update_xaxes(showgrid=True, gridcolor='lightgray', zeroline=False)
     fig.update_yaxes(showgrid=True, gridcolor='lightgray', zeroline=False)
-    fig.show()
+    safe_show(fig)
 
     output_outreach_suggestion_path = os.path.join(
         output_predictions_dir_path,
@@ -497,7 +502,6 @@ if __name__ == '__main__':
     )
     print(f"C-for-Benefit (train): {cfb_train:.3f} (pairs={len(pairs_train)})")
 
-
     actual_treated = t_test == 1
     actual_retention_rate = (1 - y_test[actual_treated]).mean()
     recommended_idx = np.argsort(uplift_predictions_test)[-optimal_n:]
@@ -508,11 +512,10 @@ if __name__ == '__main__':
     print(f"Predicted retention = {simulated_retention_rate: .3f} vs. Current retention = {actual_retention_rate: .3f}")
 
     roi_model = (v * delta_retention * len(y_test) - c * optimal_n) / (
-                c * optimal_n)
+            c * optimal_n)
     print(f"ROI vs historical: {roi_model:.1f}x")
 
     validate_matching_quality(X_train, t_train, X_train_m, t_train_m)
-
 
     treated_retention = (1 - y_train_m[t_train_m == 1]).mean()
     control_retention = (1 - y_train_m[t_train_m == 0]).mean()
@@ -535,3 +538,7 @@ if __name__ == '__main__':
     delta_vs_historical = expected_uplift_new_policy - ate_historical
     improvement_ratio = expected_uplift_new_policy / ate_historical if ate_historical != 0 else np.nan
     print(f"Improvement over historical: {delta_vs_historical:.3%} ({improvement_ratio:.2f}x)")
+
+
+if __name__ == '__main__':
+  run_training()
