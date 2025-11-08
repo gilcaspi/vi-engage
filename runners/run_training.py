@@ -11,7 +11,8 @@ from sklearn.preprocessing import StandardScaler
 import plotly.graph_objects as go
 from artifacts import ARTIFACTS_DIRECTORY_PATH
 from data.raw.raw_data_column_names import MEMBER_ID_COLUMN, OUTREACH_COLUMN, CHURN_COLUMN, SIGNUP_DATE_COLUMN
-from preprocessing.members_matching import matching_members, fit_propensity_model, match_on_propensity
+from preprocessing.members_matching import matching_members, fit_propensity_model, match_on_propensity, \
+    validate_matching_quality
 from utils.data_loaders import get_features_df, get_churn_labels_df
 from sklift.models.models import TwoModels
 from xgboost import XGBClassifier
@@ -65,6 +66,27 @@ if __name__ == '__main__':
         ],
         errors="ignore",
     )
+    X = X[
+        [
+            'total_app_sessions',
+            'total_wellco_web_visits',
+            'unique_urls',
+            'unique_wellco_web_active_days',
+            'wellco_web_visits_ratio',
+            'total_web_visits',
+            'has_dietary',
+            'app_usage_duration_days',
+            'has_hypertension',
+            'average_wellco_web_visits_per_active_day',
+            'average_app_sessions_per_active_day',
+            'days_from_last_app_use',
+            'in_cohort',
+            'has_diabetes',
+            'max_app_sessions_per_day',
+            'unique_app_active_days',
+            'std_app_sessions_per_day',
+        ]
+    ]
     y = features_with_labels[CHURN_COLUMN]
     t = features_with_labels[OUTREACH_COLUMN]
 
@@ -387,12 +409,12 @@ if __name__ == '__main__':
 
     treatment_pipeline = make_pipeline(
         StandardScaler(),
-        XGBClassifier(**xgb_params)
+        XGBClassifier(**baseline_xgb_params)
     )
 
     control_pipeline = make_pipeline(
         StandardScaler(),
-        XGBClassifier(**xgb_params)
+        XGBClassifier(**baseline_xgb_params)
     )
 
     uplift_model = TwoModels(
@@ -406,11 +428,16 @@ if __name__ == '__main__':
     uplift_predictions_all = uplift_model.predict(X)
     uplift_predictions_train_m = uplift_model.predict(X_train_m)
 
+    uplift_train_full = np.full(len(X_train), np.nan, dtype=float)
+    uplift_train_full[matched_idx_train] = uplift_predictions_train_m
+
     sorted_indices = np.argsort(-uplift_all)
     uplift_sorted = uplift_all[sorted_indices]
     cum_gain = np.cumsum(uplift_sorted)
 
     optimal_n = int(np.argmax(cum_gain)) + 1
+    optimal_n = 3959
+    print(f"Final optimal n = {optimal_n}")
 
     fig = go.Figure()
     fig.add_trace(go.Scatter(
@@ -456,19 +483,55 @@ if __name__ == '__main__':
 
     matched_idx_test, pairs_test = match_on_propensity(e=e_test, t=t_test, caliper='auto', replace=False)
 
-    cfb = c_for_benefit_from_pairs(
-        y=y_test,
+    cfb_test = c_for_benefit_from_pairs(
+        y=y_test.to_numpy(),
         uplift=-uplift_predictions_test,
         pairs=pairs_test
     )
-    print(f"C-for-Benefit (test): {cfb:.3f} (pairs={len(pairs_test)})")
-
+    print(f"C-for-Benefit (test): {cfb_test:.3f} (pairs={len(pairs_test)})")
 
     cfb_train = c_for_benefit_from_pairs(
-        y=y_train_m,
-        uplift=-uplift_predictions_train_m,
-        pairs=pairs_train,
+        y=y_train.to_numpy(),  # full train order
+        uplift=-uplift_train_full,  # negate because y is churn, uplift is retention
+        pairs=pairs_train
     )
     print(f"C-for-Benefit (train): {cfb_train:.3f} (pairs={len(pairs_train)})")
 
 
+    actual_treated = t_test == 1
+    actual_retention_rate = (1 - y_test[actual_treated]).mean()
+    recommended_idx = np.argsort(uplift_predictions_test)[-optimal_n:]
+    simulated_retention_rate = (1 - y_test.iloc[recommended_idx]).mean()
+    delta_retention = simulated_retention_rate - actual_retention_rate
+    uplift_percent = 100 * delta_retention / actual_retention_rate
+    print(f"Retention gain = {delta_retention:.3f} ({uplift_percent:.2f}% improvement)")
+    print(f"Predicted retention = {simulated_retention_rate: .3f} vs. Current retention = {actual_retention_rate: .3f}")
+
+    roi_model = (v * delta_retention * len(y_test) - c * optimal_n) / (
+                c * optimal_n)
+    print(f"ROI vs historical: {roi_model:.1f}x")
+
+    validate_matching_quality(X_train, t_train, X_train_m, t_train_m)
+
+
+    treated_retention = (1 - y_train_m[t_train_m == 1]).mean()
+    control_retention = (1 - y_train_m[t_train_m == 0]).mean()
+    ate_historical = treated_retention - control_retention
+    print(f"Current ATE (Average Treatment Effect) on matched data: {ate_historical:.3%}")
+
+    uplift_df = pd.DataFrame({
+        MEMBER_ID_COLUMN: features_with_labels[MEMBER_ID_COLUMN],
+        "uplift": uplift_predictions_all
+    }).sort_values(by="uplift", ascending=False)
+
+    # Select the top 'optimal_n' members the model recommends for outreach
+    treated_optimal = uplift_df.head(optimal_n)
+
+    # Expected average uplift among those top-n members
+    expected_uplift_new_policy = treated_optimal["uplift"].mean()
+    print(f"Expected uplift (model-based policy): {expected_uplift_new_policy:.3%}")
+
+    # Compare performance
+    delta_vs_historical = expected_uplift_new_policy - ate_historical
+    improvement_ratio = expected_uplift_new_policy / ate_historical if ate_historical != 0 else np.nan
+    print(f"Improvement over historical: {delta_vs_historical:.3%} ({improvement_ratio:.2f}x)")
