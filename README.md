@@ -21,17 +21,17 @@ https://www.python.org/downloads/release/python-31114/
 ### 
 1. Run features generation: 
 ```bash
-    python src/features/build_features.py
+    python runners/run_features_generation.py
 ```    
 
 2. Data exploration notebook: 
 ```bash
-    jupyter lab notebooks/1_data_exploration.ipynb
+    jupyter lab data_exploration.ipynb
 ```
 
 3. Train and evaluate models: 
 ```bash
-    python src/models/train_evaluate_models.py
+    python runners/run_training_and_evaluation.py
 ```
 
 4. Artifacts and results are saved in the `artifacts/` folder.
