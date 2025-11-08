@@ -43,12 +43,12 @@ WellCo experienced increased members churn rates recently and seek Vi Labs assis
 Vi Labs seamlessly integrated with WellCo's data systems and developed an AI-driven outreach strategy to optimize retention efforts.
 **Vi Engage increased WellCo's expected member retention uplift from 3% to 21% - using the same outreach budget.**
 
-## 3. Objectives & Problem Definition
+## 3. Objective & Problem Definition
 WellCo seeks to reduce member churn through data-driven, personalized online interventions.  
-The main objectives are:
+The main objective is:
+- **Maximize Retention Uplift:** Identify members most likely to benefit from targeted interventions and maximize overall retention impact.
 
-- **Maximize Retention Uplift:** Identify members most likely to benefit from targeted interventions and maximize overall retention impact.  
-- **Optimize Outreach Budget:** Achieve the highest possible return on investment (ROI) within the existing budget for online engagement efforts.
+Output should include a ranked list of members for outreach, along with prioritization scores and rank. 
 
 ## 4. Data Overview 
 1. WellCo datasets: 
