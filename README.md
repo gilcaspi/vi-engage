@@ -99,6 +99,18 @@ Extracted from web interaction data:
 - `unique_wellco_active_days` – active days on WellCo web content  
 - `average_wellco_visits_per_day` – normalized engagement metric
 
+Semantic web pages categories features (added in feature version v2): 
+- Generate 10 clusters using K-Means on TF-IDF embeddings of page content (domain + title + description).
+- For each cluster, create features:  
+  - Category visit counts – total visits in category (cluster)
+  - Visit ratios – share of visits in category with respect to total visits
+  - Binary flags – whether member visited category at least once
+  - Category diversity (entropy) - diversity of visited categories
+  - Time-based metrics - 
+    - Days since last visit in category 
+    - Number of active days in category
+    - Average visits per active day in category
+  
 ## 6. Modelling Framework
 
 ### 6.1 Baseline Churn Model
