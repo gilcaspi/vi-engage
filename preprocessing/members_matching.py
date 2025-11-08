@@ -36,7 +36,7 @@ def fit_propensity_model(X: pd.DataFrame, t: pd.Series) -> Tuple[Any, np.ndarray
     return propensity_model, propensity_scores
 
 
-def match_on_propensity(e, t, caliper='auto', replace=False):
+def match_on_propensity(e: np.ndarray, t:np.ndarray, caliper='auto', replace=False):
     z = _logit(e)
 
     treat_idx = np.where(t == 1)[0]
@@ -47,18 +47,21 @@ def match_on_propensity(e, t, caliper='auto', replace=False):
     if caliper == 'auto':
         caliper = 0.2 * np.std(z)
 
-    nbrs = NearestNeighbors(n_neighbors=1, metric='euclidean')
-    nbrs.fit(z_c)
-    dists, nn = nbrs.kneighbors(z_t, return_distance=True)
+    nearest_neighbor = NearestNeighbors(n_neighbors=1, metric='euclidean')
+    nearest_neighbor.fit(z_c)
+    dists, nn = nearest_neighbor.kneighbors(z_t, return_distance=True)
 
     used_ctrl = set()
     pairs = []
     for i, (d, j_rel) in enumerate(zip(dists.ravel(), nn.ravel())):
         if d > caliper:
             continue
+
         c_abs = ctrl_idx[j_rel]
+
         if not replace and c_abs in used_ctrl:
             continue
+
         used_ctrl.add(c_abs)
         pairs.append((treat_idx[i], c_abs))
 
@@ -66,7 +69,7 @@ def match_on_propensity(e, t, caliper='auto', replace=False):
     return matched_idx, pairs
 
 
-def matching_members(X_train, t_train, y_train):
+def matching_members(X_train: pd.DataFrame, t_train: pd.Series, y_train: pd.Series):
     ps_model, e_train = fit_propensity_model(X_train, t_train)
     matched_idx, pairs = match_on_propensity(
         e=np.array(e_train),
@@ -75,19 +78,24 @@ def matching_members(X_train, t_train, y_train):
         replace=False
     )
 
-    # Build matched TRAIN subset
     X_train_m = X_train.iloc[matched_idx]
     y_train_m = y_train.iloc[matched_idx]
     t_train_m = t_train.iloc[matched_idx]
 
 
     print(f"Matched train size: {len(X_train_m)} "
-          f"(pairs: {len(pairs)}, treated: {sum(t_train_m == 1)}, control: {sum(t_train_m == 0)})")
+          f"(pairs: {len(pairs)}, treated: {sum(1 == t_train_m)}, control: {sum(0 == t_train_m)})")
 
     return X_train_m, t_train_m, y_train_m, matched_idx, pairs
 
 
-def validate_matching_quality(X_train, t_train, X_train_m, t_train_m):
+def validate_matching_quality(
+        X_train: pd.DataFrame,
+        t_train: pd.Series,
+        X_train_m: pd.DataFrame,
+        t_train_m: pd.Series
+) -> Tuple[pd.Series, pd.Series]:
+
     X_treat, X_ctrl = X_train[t_train == 1], X_train[t_train == 0]
     X_treat_m, X_ctrl_m = X_train_m[t_train_m == 1], X_train_m[t_train_m == 0]
 
