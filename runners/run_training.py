@@ -57,7 +57,11 @@ def plot_calibration_curve(
     plt.show()
 
 
-def run_training(features_version: str = 'v2'):
+def run_training(
+        features_version: str = 'v2',
+        include_cohort_only: bool = False,
+        should_use_budget_n_constraint: bool = True,
+):
     features_df = get_features_df(features_version=features_version)
     churn_labels_df = get_churn_labels_df()
 
@@ -66,6 +70,9 @@ def run_training(features_version: str = 'v2'):
         on=MEMBER_ID_COLUMN,
         how='left'
     )
+
+    if include_cohort_only:
+        features_with_labels = features_with_labels[features_with_labels['in_cohort'] == 1]
 
     X = features_with_labels.drop(
         columns=[
@@ -420,9 +427,14 @@ def run_training(features_version: str = 'v2'):
     cum_gain = np.cumsum(uplift_sorted)
 
     optimal_n = int(np.argmax(cum_gain)) + 1
+    actual_n = optimal_n
     budget_n = 3959
-    optimal_n = budget_n
+
+    if should_use_budget_n_constraint:
+        actual_n = budget_n
+
     print(f"Final optimal n = {optimal_n}")
+    print(f"Using actual n = {actual_n}")
 
     fig = go.Figure()
     fig.add_trace(go.Scatter(
@@ -436,8 +448,15 @@ def run_training(features_version: str = 'v2'):
     fig.add_vline(
         x=optimal_n,
         line_dash="dash",
-        line_color="red",
+        line_color="green",
         annotation_text=f"Optimal n = {optimal_n}",
+        annotation_position="top right"
+    )
+    fig.add_vline(
+        x=budget_n,
+        line_dash="dash",
+        line_color="blue",
+        annotation_text=f"Budget n = {budget_n}",
         annotation_position="top right"
     )
     fig.update_layout(
@@ -460,7 +479,7 @@ def run_training(features_version: str = 'v2'):
         output_predictions_dir_path,
         f'outreach_suggestion_{version}.csv'
     )
-    outreach_suggestion_df = predicted_uplift_all.head(optimal_n)
+    outreach_suggestion_df = predicted_uplift_all.head(actual_n)
     outreach_suggestion_df.to_csv(output_outreach_suggestion_path, index=False)
 
     ps_model, e_train = fit_propensity_model(X_train, t_train)
@@ -484,15 +503,15 @@ def run_training(features_version: str = 'v2'):
 
     actual_treated = t_test == 1
     actual_retention_rate = (1 - y_test[actual_treated]).mean()
-    recommended_idx = np.argsort(uplift_predictions_test)[-optimal_n:]
+    recommended_idx = np.argsort(uplift_predictions_test)[-actual_n:]
     simulated_retention_rate = (1 - y_test.iloc[recommended_idx]).mean()
     delta_retention = simulated_retention_rate - actual_retention_rate
     uplift_percent = 100 * delta_retention / actual_retention_rate
     print(f"Retention gain = {delta_retention:.3f} ({uplift_percent:.2f}% improvement)")
     print(f"Predicted retention = {simulated_retention_rate: .3f} vs. Current retention = {actual_retention_rate: .3f}")
 
-    roi_model = (v * delta_retention * len(y_test) - c * optimal_n) / (
-            c * optimal_n)
+    roi_model = (v * delta_retention * len(y_test) - c * actual_n) / (
+            c * actual_n)
     print(f"ROI vs historical: {roi_model:.1f}x")
 
     validate_matching_quality(X_train, t_train, X_train_m, t_train_m)
@@ -508,7 +527,7 @@ def run_training(features_version: str = 'v2'):
     }).sort_values(by="uplift", ascending=False)
 
     # Select the top 'optimal_n' members the model recommends for outreach
-    treated_optimal = uplift_df.head(optimal_n)
+    treated_optimal = uplift_df.head(actual_n)
 
     # Expected average uplift among those top-n members
     expected_uplift_new_policy = treated_optimal["uplift"].mean()
