@@ -10,6 +10,7 @@ from sklearn.pipeline import make_pipeline
 from sklearn.preprocessing import StandardScaler
 import plotly.graph_objects as go
 from artifacts import ARTIFACTS_DIRECTORY_PATH
+from compose.build_pipelines import build_supervised_pipeline
 from data.raw.raw_data_column_names import MEMBER_ID_COLUMN, OUTREACH_COLUMN, CHURN_COLUMN, SIGNUP_DATE_COLUMN
 from preprocessing.members_matching import matching_members, fit_propensity_model, match_on_propensity, \
     validate_matching_quality
@@ -100,15 +101,7 @@ def run_training_and_evaluation(
     if not TEST_MODE:
         plot_feature_correlation_heatmap(X_train_m, "Correlation Heatmap - Matched Train Set")
 
-    baseline_model = LogisticRegression(
-        max_iter=1000,
-        class_weight='balanced',
-    )
-
-    baseline_pipeline = make_pipeline(
-        StandardScaler(),
-        baseline_model,
-    )
+    baseline_pipeline = build_supervised_pipeline()
     baseline_pipeline.fit(X_train_m, y_train_m)
 
     y_pred = baseline_pipeline.predict(X_test)

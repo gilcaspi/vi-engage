@@ -8,8 +8,10 @@ from base_classes.interfaces import Classifier
 
 class SklearnLogisticRegression(Classifier):
     def __init__(self, max_iter: int = 1000, class_weight: str | dict | None = "balanced") -> None:
-        self.model = make_pipeline(StandardScaler(with_mean=False),
-                                   LogisticRegression(max_iter=max_iter, class_weight=class_weight))
+        self.model = make_pipeline(
+            StandardScaler(with_mean=False),
+            LogisticRegression(max_iter=max_iter, class_weight=class_weight),
+        )
 
     def fit(self, X: np.ndarray, y: np.ndarray) -> "SklearnLogisticRegression":
         self.model.fit(X, y)

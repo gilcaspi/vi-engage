@@ -1,4 +1,7 @@
+from typing import Tuple, Any
+
 import numpy as np
+import pandas as pd
 from sklearn.linear_model import LogisticRegression
 from sklearn.neighbors import NearestNeighbors
 from sklearn.pipeline import make_pipeline
@@ -6,28 +9,34 @@ from sklearn.preprocessing import StandardScaler
 from causallib.utils.stat_utils import calc_weighted_standardized_mean_differences as calc_smd
 
 
+EPSILON = 1e-6
+
+
 def _logit(p: np.ndarray) -> np.ndarray:
-    p = np.clip(p, 1e-6, 1 - 1e-6)
+    p = np.clip(p, EPSILON, 1 - EPSILON)
     return np.log(p / (1 - p))
 
-def fit_propensity_model(X, t):
-    """Return fitted pipeline and propensity scores e(x)=P(T=1|X)."""
-    ps_pipeline = make_pipeline(
+
+def fit_propensity_model(X: pd.DataFrame, t: pd.Series) -> Tuple[Any, np.ndarray]:
+    """
+    :return
+        propensity_score_pipeline: the pipeline used to compute propensity scores
+        propensity_score: e = P(T=1|X)
+    """
+    propensity_model = make_pipeline(
         StandardScaler(),
         LogisticRegression(max_iter=2000, class_weight=None)
     )
-    ps_pipeline.fit(X, t)
-    e = ps_pipeline.predict_proba(X)[:, 1]
-    e = np.clip(e, 1e-6, 1 - 1e-6)
-    return ps_pipeline, e
+
+    propensity_model.fit(X, t)
+
+    treatment_probabilities = propensity_model.predict_proba(X)[:, 1]
+    propensity_scores = np.clip(treatment_probabilities, EPSILON, 1 - EPSILON)
+
+    return propensity_model, propensity_scores
 
 
 def match_on_propensity(e, t, caliper='auto', replace=False):
-    """
-    1:1 greedy nearest-neighbor matching on the logit of propensity.
-    Returns indices of matched rows (treated+control), and list of pairs (ti, ci).
-    """
-    # work on logits (Rosenbaum–Rubin caliper rule)
     z = _logit(e)
 
     treat_idx = np.where(t == 1)[0]
@@ -35,7 +44,6 @@ def match_on_propensity(e, t, caliper='auto', replace=False):
     z_t = z[treat_idx].reshape(-1, 1)
     z_c = z[ctrl_idx].reshape(-1, 1)
 
-    # auto-caliper: 0.2 * SD(logit)
     if caliper == 'auto':
         caliper = 0.2 * np.std(z)
 

@@ -18,7 +18,7 @@ class SklearnTabularPreprocessor(Preprocessor):
 
         cat_pipe: Pipeline = Pipeline(steps=[
             ("impute", SimpleImputer(strategy="most_frequent")),
-            ("ohe", OneHotEncoder(handle_unknown="ignore", sparse=False)),
+            ("ohe", OneHotEncoder(handle_unknown="ignore")),
         ])
 
         self.ct: ColumnTransformer = ColumnTransformer(

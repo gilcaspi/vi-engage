@@ -23,6 +23,12 @@ class SupervisedPipeline:
         Xp: np.ndarray = self.pre.transform(X)
         return self.clf.predict_proba(Xp)
 
+
+    def predict(self, X: pd.DataFrame) -> np.ndarray:
+        Xp: np.ndarray = self.pre.transform(X)
+        return self.clf.predict(Xp)
+
+
     def evaluate(self, X: pd.DataFrame, y: pd.Series) -> SupervisedMetrics:
         p: np.ndarray = self.predict_proba(X)[:, 1]
         m: Dict[str, Any] = self.evaluator.evaluate(y_true=y.to_numpy(), y_score=p)
