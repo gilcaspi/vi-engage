@@ -20,6 +20,7 @@ class Classifier(Protocol):
 
     def predict(self, X: np.ndarray) -> np.ndarray:
         ...
+
     def predict_proba(self, X: np.ndarray) -> np.ndarray:
         ...
 
@@ -39,4 +40,12 @@ class Matcher(Protocol):
 
 class Evaluator(Protocol):
     def evaluate(self, y_true: np.ndarray, y_score: np.ndarray, **kwargs) -> dict:
+        ...
+
+
+class ProbabilisticEstimator(Protocol):
+    def fit(self, X: pd.DataFrame, y: pd.Series) -> "ProbabilisticEstimator":
+        ...
+
+    def predict_proba(self, X: pd.DataFrame) -> np.ndarray:
         ...
