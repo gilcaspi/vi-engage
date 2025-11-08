@@ -57,7 +57,7 @@ def plot_calibration_curve(
     plt.show()
 
 
-def run_training(
+def run_training_and_evaluation(
         features_version: str = 'v2',
         include_cohort_only: bool = False,
         should_use_budget_n_constraint: bool = True,
@@ -97,7 +97,8 @@ def run_training(
 
     X_train_m, t_train_m, y_train_m, matched_idx_train, pairs_train = matching_members(X_train, t_train, y_train)
 
-    plot_feature_correlation_heatmap(X_train_m, "Correlation Heatmap - Matched Train Set")
+    if not TEST_MODE:
+        plot_feature_correlation_heatmap(X_train_m, "Correlation Heatmap - Matched Train Set")
 
     baseline_model = LogisticRegression(
         max_iter=1000,
@@ -151,11 +152,12 @@ def run_training(
     )
     predicted_churn_probabilities.to_csv(output_predictions_path, index=False)
 
-    plot_calibration_curve(
-        y_ground_truth=y_test,
-        y_estimated_probability=y_proba,
-        model_name=baseline_model_name,
-    )
+    if not TEST_MODE:
+        plot_calibration_curve(
+            y_ground_truth=y_test,
+            y_estimated_probability=y_proba,
+            model_name=baseline_model_name,
+        )
 
     ## Uplift
     treatment_pipeline = make_pipeline(
@@ -526,18 +528,15 @@ def run_training(
         "uplift": uplift_predictions_all
     }).sort_values(by="uplift", ascending=False)
 
-    # Select the top 'optimal_n' members the model recommends for outreach
     treated_optimal = uplift_df.head(actual_n)
 
-    # Expected average uplift among those top-n members
     expected_uplift_new_policy = treated_optimal["uplift"].mean()
     print(f"Expected uplift (model-based policy): {expected_uplift_new_policy:.3%}")
 
-    # Compare performance
     delta_vs_historical = expected_uplift_new_policy - ate_historical
     improvement_ratio = expected_uplift_new_policy / ate_historical if ate_historical != 0 else np.nan
     print(f"Improvement over historical: {delta_vs_historical:.3%} ({improvement_ratio:.2f}x)")
 
 
 if __name__ == '__main__':
-  run_training()
+  run_training_and_evaluation()

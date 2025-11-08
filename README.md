@@ -132,26 +132,38 @@ To estimate **incremental impact** of outreach (the “treatment”), we impleme
 ### 6.3 Matching Procedure
 Since the dataset is observational, we used **propensity score matching (PSM)** to simulate a randomized design (randomized control trial).
 
-## 7. Evaluation & Results
 
-## 8. Cost - Value Optimization
+## 7. Algorithm Flow 
+### 7.1 Load and join datasets
+### 7.2 Train - Test split 
+Split data into train (80%) and test (20%) sets, stratified by churn and outreach labels.
+### 7.3 Balance treatment and control groups 
+Use propensity-score matching to balance outreach and non-outreach groups.
+### 7.4 Feature generation
+### 7.5 Model training
+- Train baseline churn model
+- Train uplift models (two models approach - treatment and control) to estimate retention gain from outreach. 
+### 7.6 Members ranking and scoring 
+## 8. Evaluation & Results
 
-## 9. Business Insights
+## 9. Cost - Value Optimization
 
-## 10. Deliverables Summary
+## 10. Business Insights
 
-## 11. Next Steps 
-1. **Model Optimization**  
+## 11. Deliverables Summary
+
+## 12. Next Steps 
+### 12.1 **Model Optimization**  
    - Evaluate alternative models  
    - Tune hyperparameters  
    - Test alternative uplift modeling approaches  
 
-2. **Feature Enrichment**  
+### 12.2 **Feature Enrichment**  
    - Improve web page classification using LLMs  
 
-3. **Code Refactoring**  
+### 12.3 **Code Refactoring**  
    - Prepare Vi Engage for seamless integration with future clients  
 
-4. **Business Alignment**  
+### 12.4 **Business Alignment**  
    - Optimize expected ROI through a personalized outreach method for each member  
    - Requires access to WellCo’s outreach cost structure and average member value
