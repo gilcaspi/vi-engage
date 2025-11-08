@@ -34,7 +34,7 @@ def test_no_performance_change():
     })
 
     project_root_dir_path = os.path.dirname(RUNNERS_DIRECTORY_PATH)
-    script_path = os.path.join(RUNNERS_DIRECTORY_PATH, 'run_training.py')
+    script_path = os.path.join(RUNNERS_DIRECTORY_PATH, 'run_training_and_evaluation.py')
 
     result = subprocess.run(
         ["python", script_path],
@@ -46,7 +46,7 @@ def test_no_performance_change():
     )
 
     assert result.returncode == 0, (
-        "run_training.py failed\n"
+        "run_training_and_evaluation.py failed\n"
         f"STDOUT:\n{result.stdout}\n\nSTDERR:\n{result.stderr}"
     )
     output = result.stdout
