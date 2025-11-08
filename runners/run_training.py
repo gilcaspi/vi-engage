@@ -57,8 +57,8 @@ def plot_calibration_curve(
     plt.show()
 
 
-def run_training():
-    features_df = get_features_df(features_version='v1')
+def run_training(features_version: str = 'v2'):
+    features_df = get_features_df(features_version=features_version)
     churn_labels_df = get_churn_labels_df()
 
     features_with_labels = features_df.merge(
@@ -76,27 +76,6 @@ def run_training():
         ],
         errors="ignore",
     )
-    X = X[
-        [
-            'total_app_sessions',
-            'total_wellco_web_visits',
-            'unique_urls',
-            'unique_wellco_web_active_days',
-            'wellco_web_visits_ratio',
-            'total_web_visits',
-            'has_dietary',
-            'app_usage_duration_days',
-            'has_hypertension',
-            'average_wellco_web_visits_per_active_day',
-            'average_app_sessions_per_active_day',
-            'days_from_last_app_use',
-            'in_cohort',
-            'has_diabetes',
-            'max_app_sessions_per_day',
-            'unique_app_active_days',
-            'std_app_sessions_per_day',
-        ]
-    ]
     y = features_with_labels[CHURN_COLUMN]
     t = features_with_labels[OUTREACH_COLUMN]
 
@@ -442,6 +421,7 @@ def run_training():
 
     optimal_n = int(np.argmax(cum_gain)) + 1
     budget_n = 3959
+    optimal_n = budget_n
     print(f"Final optimal n = {optimal_n}")
 
     fig = go.Figure()
