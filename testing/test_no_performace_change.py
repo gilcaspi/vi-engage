@@ -33,13 +33,15 @@ def test_no_performance_change():
         "MPLBACKEND": "Agg",
     })
 
+    project_root_dir_path = os.path.dirname(RUNNERS_DIRECTORY_PATH)
     script_path = os.path.join(RUNNERS_DIRECTORY_PATH, 'run_training.py')
+
     result = subprocess.run(
         ["python", script_path],
         capture_output=True,
         text=True,
         check=True,
-        cwd=RUNNERS_DIRECTORY_PATH,
+        cwd=project_root_dir_path,
         env=env,
     )
 
