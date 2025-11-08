@@ -73,17 +73,52 @@ The main objectives are:
 
 ## 5. Feature Engineering
 
-## 6. Modeling Framework 
-### 6.1 Baseline Churn Model 
-Trained a model to predict churn risk using historical data.
+### 5.1 Claims-Based Features
+Derived from ICD-10 diagnosis codes:
+- **has_diabetes (E11.9)** – binary flag  
+- **has_hypertension (I10)** – binary flag  
+- **has_dietary_counseling (Z71.3)** – binary flag  
+- **in_cohort** – flag for members with any of the above
 
+### 5.2 App Usage Features
+Aggregated from the mobile app activity logs:
+- `total_app_sessions` – total sessions per member  
+- `unique_app_active_days` – distinct active days  
+- `average_sessions_per_day` – mean engagement intensity  
+- `std_sessions_per_day` – engagement variability  
+- `max_sessions_per_day` – peak daily activity  
+- `app_usage_duration_days` – active period (first–last session)  
+- `days_from_last_app_use` – inactivity gap prior to churn observation
 
-### 6.2 Uplift Modeling 
-#### 6.2.1 Matching pairs 
-Since our data is observational (not randomized control trial with respect to outreach as a treatment),
-we needed to split our data to outreached group and control group with matching pairs. 
+### 5.3 Web Visit Features
+Extracted from web interaction data:
+- `total_web_visits` – overall visits  
+- `unique_urls` – number of unique visited URLs  
+- `total_wellco_visits` – visits to WellCo-related domains  
+- `wellco_visits_ratio` – share of WellCo visits among total  
+- `unique_wellco_active_days` – active days on WellCo web content  
+- `average_wellco_visits_per_day` – normalized engagement metric
 
+## 6. Modelling Framework
 
+### 6.1 Baseline Churn Model
+A **Logistic Regression** model (with standardized features and class balancing) was trained to predict churn probability.  
+
+### 6.2 Uplift Modeling
+To estimate **incremental impact** of outreach (the “treatment”), we implemented uplift modeling using the *Two-Model* approach:
+
+- **Treatment model:** predicts churn probability for outreached members  
+- **Control model:** predicts churn probability for non-outreached members  
+- **Uplift score:**  
+
+  $$
+  \text{uplift}(\mathbf{x}) = \mathbb{E}[\text{churn} \mid \text{outreach}=0, \mathbf{X}=\mathbf{x}] - \mathbb{E}[\text{churn} \mid \text{outreach}=1, \mathbf{X}=\mathbf{x}]
+  $$
+
+  Higher scores indicate members **less likely to churn if outreached**. 
+
+### 6.3 Matching Procedure
+Since the dataset is observational, we used **propensity score matching (PSM)** to simulate a randomized design (randomized control trial).
 
 ## 7. Evaluation & Results
 
