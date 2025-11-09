@@ -245,7 +245,15 @@ def run_training_and_evaluation(
             uplift_sorted_all = np.sort(uplift_all)[::-1]
             net_curve = np.cumsum(v * uplift_sorted_all - c)
             optimal_n = int(np.argmax(net_curve)) + 1
-            print(f"Optimal n considering cost = {optimal_n}")
+
+
+            best_net_value = net_curve[optimal_n - 1]
+            roi = best_net_value / (c * optimal_n) if c * optimal_n > 0 else float('inf')
+
+            print("-" * 60)
+            print(f"Optimal n considering cost({c}) = {optimal_n}")
+            print(f"[Cost={c}, Value={v}] ROI at optimal n: {roi:.2f}x | Expected net gain: ${best_net_value:.2f}")
+            print("-" * 60)
 
             fig = go.Figure()
             fig.add_trace(go.Scatter(
@@ -363,9 +371,9 @@ def run_training_and_evaluation(
 
     safe_show(fig)
 
-    best_net_value = net_curve[optimal_n - 1]
-    roi = best_net_value / (c * optimal_n) if c * optimal_n > 0 else float('inf')
-    print(f"[Cost={c}, Value={v}] ROI at optimal n: {roi:.2f}x | Expected net gain: ${best_net_value:.2f}")
+    # best_net_value = net_curve[optimal_n - 1]
+    # roi = best_net_value / (c * optimal_n) if c * optimal_n > 0 else float('inf')
+    # print(f"[Cost={c}, Value={v}] ROI at optimal n: {roi:.2f}x | Expected net gain: ${best_net_value:.2f}")
 
     y_retention_test = 1 - y_test
     y_retention_train = 1 - y_train_m
@@ -545,9 +553,9 @@ def run_training_and_evaluation(
         "uplift": xgb_uplift_predictions_test
     }).sort_values(by="uplift", ascending=False)
 
-    treated_optimal = best_uplift_predictions_test_df.head(actual_n)
+    treated_test_optimal_expected = best_uplift_predictions_test_df.head(actual_n)
 
-    expected_uplift_new_policy = treated_optimal["uplift"].mean()
+    expected_uplift_new_policy = treated_test_optimal_expected["uplift"].mean()
     print(f"Expected uplift (model-based policy): {expected_uplift_new_policy:.3%}")
 
     delta_vs_historical = expected_uplift_new_policy - ate_historical_test
