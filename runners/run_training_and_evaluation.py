@@ -43,6 +43,7 @@ def run_training_and_evaluation(
         features_version: str = 'v2',
         include_cohort_only: bool = False,
         should_use_budget_n_constraint: bool = True,
+        output_predictions_version: str = 'v1',
 ):
     features_df = get_features_df(features_version=features_version)
     churn_labels_df = get_churn_labels_df()
@@ -102,13 +103,12 @@ def run_training_and_evaluation(
     )
     safe_show(fig)
 
-    version = 'v1'
     baseline_model_name = f'baseline_logistic_regression_model'
 
     output_models_dir_path = os.path.join(ARTIFACTS_DIRECTORY_PATH, 'models')
     os.makedirs(output_models_dir_path, exist_ok=True)
 
-    output_model_baseline_path = os.path.join(output_models_dir_path, f'{baseline_model_name}_{version}.pkl')
+    output_model_baseline_path = os.path.join(output_models_dir_path, f'{baseline_model_name}_{output_predictions_version}.pkl')
     joblib.dump(baseline_pipeline, output_model_baseline_path)
 
     predicted_churn_probabilities = pd.DataFrame({
@@ -122,7 +122,7 @@ def run_training_and_evaluation(
 
     output_predictions_path = os.path.join(
         output_predictions_dir_path,
-        f'{baseline_model_name}_probabilities_{version}.csv'
+        f'{baseline_model_name}_probabilities_{output_predictions_version}.csv'
     )
     predicted_churn_probabilities.to_csv(output_predictions_path, index=False)
 
@@ -160,28 +160,28 @@ def run_training_and_evaluation(
         y_train_m[t_train_m == 0],
     )
 
-    treatment_proba = treatment_pipeline.predict_proba(X_test)[:, 1]
-    control_proba = control_pipeline.predict_proba(X_test)[:, 1]
+    treatment_proba_test = treatment_pipeline.predict_proba(X_test)[:, 1]
+    control_proba_test = control_pipeline.predict_proba(X_test)[:, 1]
 
-    uplift = control_proba - treatment_proba
+    uplift_test = control_proba_test - treatment_proba_test
     uplift_model_name = f'uplift_logistic_regression_model'
-    output_model_uplift_path = os.path.join(output_models_dir_path, f'{uplift_model_name}_{version}.pkl')
+    output_model_uplift_path = os.path.join(output_models_dir_path, f'{uplift_model_name}_{output_predictions_version}.pkl')
     joblib.dump({
         "treatment_model": treatment_pipeline,
         "control_model": control_pipeline,
     }, output_model_uplift_path)
 
-    predicted_uplift = pd.DataFrame({
+    predicted_uplift_test = pd.DataFrame({
         MEMBER_ID_COLUMN: features_with_labels.loc[X_test.index, MEMBER_ID_COLUMN].values,
-        "uplift": uplift
+        "uplift": uplift_test
     })
-    predicted_uplift.sort_values(by='uplift', ascending=False, inplace=True)
+    predicted_uplift_test.sort_values(by='uplift', ascending=False, inplace=True)
 
     output_uplift_predictions_path = os.path.join(
         output_predictions_dir_path,
-        f'{uplift_model_name}_predictions_{version}.csv'
+        f'{uplift_model_name}_predictions_{output_predictions_version}.csv'
     )
-    predicted_uplift.to_csv(output_uplift_predictions_path, index=False)
+    predicted_uplift_test.to_csv(output_uplift_predictions_path, index=False)
 
     ## Uplift all members
     treatment_proba_all = treatment_pipeline.predict_proba(X)[:, 1]
@@ -198,23 +198,26 @@ def run_training_and_evaluation(
 
     output_uplift_all_predictions_path = os.path.join(
         output_predictions_dir_path,
-        f'{uplift_model_name}_predictions_all_{version}.csv'
+        f'{uplift_model_name}_predictions_all_{output_predictions_version}.csv'
     )
     predicted_uplift_all.to_csv(output_uplift_all_predictions_path, index=False)
 
-    order = np.argsort(-uplift)
-    y_ord = y_test.values[order]
-    t_ord = t_test.values[order]
+    order_test = np.argsort(-uplift_test)
+    y_ordered_test = y_test.values[order_test]
+    t_ordered_test = t_test.values[order_test]
 
-    cum_treat = (t_ord == 1).astype(int).cumsum()
-    cum_ctrl = (t_ord == 0).astype(int).cumsum()
-    cum_y_t = ((t_ord == 1) & (y_ord == 1)).astype(int).cumsum()
+    cumulative_treatment_test = (t_ordered_test == 1).astype(int).cumsum()
+    cumulative_control_test = (t_ordered_test == 0).astype(int).cumsum()
+    cumulative_churn_treatment_test = ((t_ordered_test == 1) & (y_ordered_test == 1)).astype(int).cumsum()
 
-    ctrl_rate = ((t_ord == 0) & (y_ord == 1)).sum() / max((t_ord == 0).sum(), 1)
-    qini = cum_y_t - ctrl_rate * cum_treat
+    churn_rate_on_control_test = (
+            ((t_ordered_test == 0) & (y_ordered_test == 1)).sum()
+            / max((t_ordered_test == 0).sum(), 1)
+    )
+    qini = cumulative_churn_treatment_test - churn_rate_on_control_test * cumulative_treatment_test
 
     optimal_n = int(np.argmax(qini)) + 1
-    print(f"Optimal n = {optimal_n}")
+    print(f"Optimal n (Qini) = {optimal_n}")
 
     ## Uplift with cost and value assumptions
     for v in [20]:
@@ -453,7 +456,7 @@ def run_training_and_evaluation(
 
     output_outreach_suggestion_path = os.path.join(
         output_predictions_dir_path,
-        f'outreach_suggestion_{version}.csv'
+        f'outreach_suggestion_{output_predictions_version}.csv'
     )
     outreach_suggestion_df = predicted_uplift_all.head(actual_n)
     outreach_suggestion_df.to_csv(output_outreach_suggestion_path, index=False)
@@ -531,6 +534,12 @@ def get_args_parser() -> argparse.ArgumentParser:
         default=True,
         help="Whether to use budget n constraint in uplift evaluation.",
     )
+    parser.add_argument(
+        "--predictions-version",
+        type=str,
+        default="v1",
+        help="The output predictions version.",
+    )
     return parser
 
 
@@ -542,4 +551,5 @@ if __name__ == '__main__':
         features_version=args.features_version,
         include_cohort_only=args.include_cohort_only,
         should_use_budget_n_constraint=args.use_budget_n_constraint,
+        output_predictions_version=args.predictions_version,
     )
