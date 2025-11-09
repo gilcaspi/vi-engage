@@ -43,7 +43,7 @@ def run_training_and_evaluation(
         features_version: str = 'v2',
         include_cohort_only: bool = False,
         should_use_budget_n_constraint: bool = True,
-        output_predictions_version: str = 'v1',
+        output_predictions_version: str = 'v2',
         outreach_costs_to_evaluate: Optional[List[float]] = None,
         ltv_per_member: float = 100.0,
 ):
@@ -413,7 +413,7 @@ def run_training_and_evaluation(
     )
 
     xgb_uplift_model.fit(X_train_m, y_retention_train, treatment=t_train_m)
-    uplift_predictions_test = xgb_uplift_model.predict(X_test)
+    xgb_uplift_predictions_test = xgb_uplift_model.predict(X_test)
     xgb_uplift_predictions_all = xgb_uplift_model.predict(X)
     uplift_predictions_train_m = xgb_uplift_model.predict(X_train_m)
 
@@ -434,7 +434,7 @@ def run_training_and_evaluation(
     xgb_predicted_uplift_all.to_csv(output_xgb_uplift_all_predictions_path, index=False)
 
 
-    qini_area = qini_auc(y=y_test.values, t=t_test.values, uplift_scores=uplift_predictions_test)
+    qini_area = qini_auc(y=y_test.values, t=t_test.values, uplift_scores=xgb_uplift_predictions_test)
     print(f"Qini AUC (Two-Model XGB, test): {qini_area:,.2f}")
 
     uplift_train_full = np.full(len(X_train), np.nan, dtype=float)
@@ -507,7 +507,7 @@ def run_training_and_evaluation(
 
     cfb_test = c_for_benefit_from_pairs(
         y=y_test.to_numpy(),
-        uplift=-uplift_predictions_test,
+        uplift=-xgb_uplift_predictions_test,
         pairs=pairs_test
     )
     print(f"C-for-Benefit (test): {cfb_test:.3f} (pairs={len(pairs_test)})")
@@ -521,7 +521,7 @@ def run_training_and_evaluation(
 
     actual_treated = t_test == 1
     actual_retention_rate = (1 - y_test[actual_treated]).mean()
-    recommended_idx = np.argsort(uplift_predictions_test)[-actual_n:]
+    recommended_idx = np.argsort(xgb_uplift_predictions_test)[-actual_n:]
     simulated_retention_rate = (1 - y_test.iloc[recommended_idx]).mean()
     delta_retention = simulated_retention_rate - actual_retention_rate
     uplift_percent = 100 * delta_retention / actual_retention_rate
@@ -540,12 +540,12 @@ def run_training_and_evaluation(
     ate_historical_test = treated_retention_test - control_retention_test
     print(f"Current ATE (Average Treatment Effect): {ate_historical_test:.3%}")
 
-    uplift_df = pd.DataFrame({
+    best_uplift_predictions_test_df = pd.DataFrame({
         MEMBER_ID_COLUMN: pd.Series(list(X_test.index)),
-        "uplift": uplift_predictions_test
+        "uplift": xgb_uplift_predictions_test
     }).sort_values(by="uplift", ascending=False)
 
-    treated_optimal = uplift_df.head(actual_n)
+    treated_optimal = best_uplift_predictions_test_df.head(actual_n)
 
     expected_uplift_new_policy = treated_optimal["uplift"].mean()
     print(f"Expected uplift (model-based policy): {expected_uplift_new_policy:.3%}")
@@ -556,7 +556,7 @@ def run_training_and_evaluation(
 
     fig = plot_uplift_at_k_trend(
         y_retention_test=y_retention_test,
-        uplift_retention_predictions_test=uplift_predictions_test,
+        uplift_retention_predictions_test=xgb_uplift_predictions_test,
         treatment_test=t_test,
     )
     safe_show(fig)
@@ -584,7 +584,7 @@ def get_args_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--predictions-version",
         type=str,
-        default="v1",
+        default="v2",
         help="The output predictions version.",
     )
     parser.add_argument(
