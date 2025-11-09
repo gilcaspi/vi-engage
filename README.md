@@ -46,7 +46,7 @@ https://www.python.org/downloads/release/python-31114/
 ## 2. Executive Summary
 WellCo experienced increased members churn rates recently and seek Vi Labs assistance in reducing it. 
 Vi Labs seamlessly integrated with WellCo's data systems and developed an AI-driven outreach strategy to optimize retention efforts.
-**Vi Engage increased WellCo's expected member retention uplift from 3% to 21% - using the same outreach budget.**
+**Vi Engage increased WellCo's expected member retention uplift from 1.32% to 3.94% - using the same outreach budget.**
 
 ## 3. Objective & Problem Definition
 WellCo seeks to reduce member churn through data-driven, personalized online interventions.  
@@ -145,15 +145,27 @@ Split data into train (80%) and test (20%) sets, stratified by churn and outreac
 ### 7.3 Balance treatment and control groups 
 Use propensity-score matching to balance outreach and non-outreach groups.
 ### 7.4 Feature generation
+Explained in Section 5.
 ### 7.5 Model training
-- Train baseline churn model
-- Train uplift models (two models approach - treatment and control) to estimate retention gain from outreach. 
+- Train baseline churn model: $$\text {churn risk} = \mathbb{P}[\text{churn = 1} \mid \mathbf{X}=\mathbf{x}]$$ using Logistic Regression.
+- Train uplift models (two models approach - treatment and control) to estimate retention gain from outreach (both XGBoost models): 
+  - Treatment model: $$\mathbb{P}[\text{churn = 1} \mid \text{outreach = 1}, \mathbf{X}=\mathbf{x}]$$
+  - Control model: $$\mathbb{P}[\text{churn = 1} \mid \text{outreach = 0}, \mathbf{X}=\mathbf{x}]$$
+
 ### 7.6 Members ranking and scoring 
+- Compute uplift score:
+  - $$\text{uplift}(\mathbf{x}) = \mathbb{P}[\text{churn = 1} \mid \text{outreach = 0}, \mathbf{X}=\mathbf{x}] - \mathbb{P}[\text{churn = 1} \mid \text{outreach = 1}, \mathbf{X}=\mathbf{x}]$$
+- Rank members by uplift score (highest to lowest).
+- Select top-N members for outreach based on budget constraints.
+
 ## 8. Evaluation & Results
+- Cumulative gain in retention uplift from 1.32% (current outreach policy) to 3.94% (Vi Engage uplift model) using the same outreach budget.
 
 ## 9. Cost - Value Optimization
+- Given cost and lifetime value per member, optimize N to maximize ROI.
 
 ## 10. Business Insights
+
 
 ## 11. Deliverables Summary
 
