@@ -1,9 +1,11 @@
 import argparse
 import os
+from typing import List, Optional
 
 import joblib
 import numpy as np
 import pandas as pd
+from sklearn.calibration import CalibratedClassifierCV
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import roc_auc_score, classification_report
 from sklearn.model_selection import train_test_split
@@ -22,12 +24,11 @@ from xgboost import XGBClassifier
 import plotly.io as pio
 
 from utils.explain_model import plot_logistic_regression_importance
-from utils.plot_utils import plot_feature_correlation_heatmap, plot_calibration_curve
+from utils.plot_utils import plot_feature_correlation_heatmap, plot_calibration_curve, plot_uplift_at_k_trend
 
 pio.renderers.default = "browser"
 
-from utils.metrics import c_for_benefit_from_pairs
-
+from utils.metrics import c_for_benefit_from_pairs, qini_auc
 
 TEST_MODE = os.getenv("TEST_MODE") == "1"
 if TEST_MODE:
@@ -44,7 +45,12 @@ def run_training_and_evaluation(
         include_cohort_only: bool = False,
         should_use_budget_n_constraint: bool = True,
         output_predictions_version: str = 'v1',
+        outreach_costs_to_evaluate: Optional[List[float]] = None,
+        ltv_per_member: float = 100.0,
 ):
+    if outreach_costs_to_evaluate is None:
+        outreach_costs_to_evaluate = [1, 0.06, 0.006, 0.6]
+
     features_df = get_features_df(features_version=features_version)
     churn_labels_df = get_churn_labels_df()
 
@@ -86,13 +92,19 @@ def run_training_and_evaluation(
     baseline_pipeline = build_supervised_pipeline()
     baseline_pipeline.fit(X_train_m, y_train_m)
 
-    y_pred = baseline_pipeline.predict(X_test)
-    y_proba = baseline_pipeline.predict_proba(X_test)[:, 1]
+    y_test_churn_pred = baseline_pipeline.predict(X_test)
+    y_test_churn_proba = baseline_pipeline.predict_proba(X_test)[:, 1]
 
-    print("AUC:", roc_auc_score(y_test, y_proba))
-    print(classification_report(y_test, y_pred))
+    y_train_m_churn_proba = baseline_pipeline.predict_proba(X_train_m)[:, 1]
 
-    print("ROC AUC on Train:", roc_auc_score(y_train_m, baseline_pipeline.predict_proba(X_train_m)[:, 1]))
+    print("-" * 80)
+    print("Baseline Churn Risk Model Evaluation on Test Set: ")
+    print("ROC AUC:", roc_auc_score(y_test, y_test_churn_proba))
+    print(classification_report(y_test, y_test_churn_pred))
+    print("- - " * 20)
+    print("Baseline Churn Risk Model Evaluation on Train Set: ")
+    print("ROC AUC:", roc_auc_score(y_train_m, y_train_m_churn_proba))
+    print("-" * 80)
 
     importance_df, fig = plot_logistic_regression_importance(
         model=baseline_pipeline,
@@ -129,7 +141,7 @@ def run_training_and_evaluation(
     if not TEST_MODE:
         plot_calibration_curve(
             y_ground_truth=y_test,
-            y_estimated_probability=y_proba,
+            y_estimated_probability=y_test_churn_proba,
             model_name=baseline_model_name,
         )
 
@@ -165,7 +177,10 @@ def run_training_and_evaluation(
 
     uplift_test = control_proba_test - treatment_proba_test
     uplift_model_name = f'uplift_logistic_regression_model'
-    output_model_uplift_path = os.path.join(output_models_dir_path, f'{uplift_model_name}_{output_predictions_version}.pkl')
+    output_model_uplift_path = os.path.join(
+        output_models_dir_path,
+        f'{uplift_model_name}_{output_predictions_version}.pkl'
+    )
     joblib.dump({
         "treatment_model": treatment_pipeline,
         "control_model": control_pipeline,
@@ -207,23 +222,27 @@ def run_training_and_evaluation(
     t_ordered_test = t_test.values[order_test]
 
     cumulative_treatment_test = (t_ordered_test == 1).astype(int).cumsum()
-    cumulative_control_test = (t_ordered_test == 0).astype(int).cumsum()
-    cumulative_churn_treatment_test = ((t_ordered_test == 1) & (y_ordered_test == 1)).astype(int).cumsum()
 
-    churn_rate_on_control_test = (
-            ((t_ordered_test == 0) & (y_ordered_test == 1)).sum()
+    y_retention_ordered_test = (1 - y_ordered_test)
+    cumulative_retention_treatment_test = ((t_ordered_test == 1) & (y_retention_ordered_test == 1)).astype(int).cumsum()
+    control_retention_rate = (
+            ((t_ordered_test == 0) & (y_retention_ordered_test == 1)).sum()
             / max((t_ordered_test == 0).sum(), 1)
     )
-    qini = cumulative_churn_treatment_test - churn_rate_on_control_test * cumulative_treatment_test
+    qini = cumulative_retention_treatment_test - control_retention_rate * cumulative_treatment_test
 
     optimal_n = int(np.argmax(qini)) + 1
-    print(f"Optimal n (Qini) = {optimal_n}")
+    optimal_k_percent = 100 * optimal_n / len(qini)
+
+    print(f"Optimal n (count): {optimal_n}")
+    print(f"Optimal k (% of population): {optimal_k_percent:.2f}%")
+    print(f"Qini @ optimal n: {qini[optimal_n - 1]:.2f}")
 
     ## Uplift with cost and value assumptions
-    for v in [20]:
-        for c in [1, 0.6, 0.06, 0.006]:
-            uplift_sorted = np.sort(uplift_all)[::-1]
-            net_curve = np.cumsum(v * uplift_sorted - c)
+    for v in [ltv_per_member]:
+        for c in outreach_costs_to_evaluate:
+            uplift_sorted_all = np.sort(uplift_all)[::-1]
+            net_curve = np.cumsum(v * uplift_sorted_all - c)
             optimal_n = int(np.argmax(net_curve)) + 1
             print(f"Optimal n considering cost = {optimal_n}")
 
@@ -297,19 +316,19 @@ def run_training_and_evaluation(
     fig.update_yaxes(showgrid=True, gridcolor='lightgray', zeroline=False)
 
     # Sort uplift descending
-    sorted_indices = np.argsort(-uplift_all)
-    uplift_sorted = uplift_all[sorted_indices]
-    cum_gain = np.cumsum(uplift_sorted)
+    sorted_indices_all = np.argsort(-uplift_all)
+    uplift_sorted_all = uplift_all[sorted_indices_all]
+    cum_gain_all = np.cumsum(uplift_sorted_all)
 
     # Determine optimal n (reuse the one you already computed)
-    optimal_n = int(np.argmax(cum_gain)) + 1
+    optimal_n = int(np.argmax(cum_gain_all)) + 1
 
     fig = go.Figure()
 
     # Main cumulative uplift line
     fig.add_trace(go.Scatter(
-        x=np.arange(1, len(cum_gain) + 1),
-        y=cum_gain,
+        x=np.arange(1, len(cum_gain_all) + 1),
+        y=cum_gain_all,
         mode='lines',
         line=dict(width=2, color='rgba(0,102,204,0.9)'),
         name='Cumulative Uplift',
@@ -352,17 +371,17 @@ def run_training_and_evaluation(
     y_retention_train = 1 - y_train_m
 
     xgb_params = dict(
-        n_estimators=600,
+        n_estimators=300,
         max_depth=5,
-        learning_rate=0.03,
+        learning_rate=0.01,
         subsample=0.9,
-        colsample_bytree=0.9,
-        reg_lambda=2.0,
-        reg_alpha=0.5,
-        min_child_weight=3,
+        colsample_bytree=0.8,
+        reg_lambda=0.5,
         random_state=42,
         n_jobs=-1,
-        eval_metric='logloss'
+        eval_metric='logloss',
+        min_child_weight=5,
+        tree_method='hist',
     )
 
     baseline_xgb_params = dict(
@@ -374,7 +393,7 @@ def run_training_and_evaluation(
         reg_lambda=1.0,
         random_state=42,
         n_jobs=-1,
-        eval_metric='logloss'
+        eval_metric='logloss',
     )
 
     treatment_pipeline = make_pipeline(
@@ -398,14 +417,17 @@ def run_training_and_evaluation(
     uplift_predictions_all = uplift_model.predict(X)
     uplift_predictions_train_m = uplift_model.predict(X_train_m)
 
+    qini_area = qini_auc(y=y_test.values, t=t_test.values, uplift_scores=uplift_predictions_test)
+    print(f"Qini AUC (Two-Model XGB, test): {qini_area:,.2f}")
+
     uplift_train_full = np.full(len(X_train), np.nan, dtype=float)
     uplift_train_full[matched_idx_train] = uplift_predictions_train_m
 
-    sorted_indices = np.argsort(-uplift_all)
-    uplift_sorted = uplift_all[sorted_indices]
-    cum_gain = np.cumsum(uplift_sorted)
+    sorted_indices_all = np.argsort(-uplift_all)
+    uplift_sorted_all = uplift_all[sorted_indices_all]
+    cum_gain_all = np.cumsum(uplift_sorted_all)
 
-    optimal_n = int(np.argmax(cum_gain)) + 1
+    optimal_n = int(np.argmax(cum_gain_all)) + 1
     actual_n = optimal_n
     budget_n = 3959
 
@@ -417,8 +439,8 @@ def run_training_and_evaluation(
 
     fig = go.Figure()
     fig.add_trace(go.Scatter(
-        x=np.arange(1, len(cum_gain) + 1),
-        y=cum_gain,
+        x=np.arange(1, len(cum_gain_all) + 1),
+        y=cum_gain_all,
         mode='lines',
         line=dict(width=2, color='rgba(0,102,204,0.9)'),
         name='Cumulative Uplift',
@@ -499,6 +521,7 @@ def run_training_and_evaluation(
     control_retention_test = (1 - y_test[t_test == 0]).mean()
 
     ate_historical_test = treated_retention_test - control_retention_test
+    print(f"Current ATE (Average Treatment Effect): {ate_historical_test:.3%}")
 
     uplift_df = pd.DataFrame({
         MEMBER_ID_COLUMN: pd.Series(list(X_test.index)),
@@ -510,9 +533,16 @@ def run_training_and_evaluation(
     expected_uplift_new_policy = treated_optimal["uplift"].mean()
     print(f"Expected uplift (model-based policy): {expected_uplift_new_policy:.3%}")
 
-    delta_vs_historical = expected_uplift_new_policy - ate_historical
-    improvement_ratio = expected_uplift_new_policy / ate_historical if ate_historical != 0 else np.nan
+    delta_vs_historical = expected_uplift_new_policy - ate_historical_test
+    improvement_ratio = expected_uplift_new_policy / ate_historical_test if ate_historical_test != 0 else np.nan
     print(f"Improvement over historical: {delta_vs_historical:.3%} ({improvement_ratio:.2f}x)")
+
+    fig = plot_uplift_at_k_trend(
+        y_retention_test=y_retention_test,
+        uplift_retention_predictions_test=uplift_predictions_test,
+        treatment_test=t_test,
+    )
+    safe_show(fig)
 
 
 def get_args_parser() -> argparse.ArgumentParser:
@@ -540,6 +570,18 @@ def get_args_parser() -> argparse.ArgumentParser:
         default="v1",
         help="The output predictions version.",
     )
+    parser.add_argument(
+        "--outreach-costs-to-evaluate-list",
+        nargs='+',
+        type=float,
+        default=None,
+    )
+    parser.add_argument(
+        "--ltv-per-member",
+        type=float,
+        default=100.0,
+        help="The lifetime value per retained member.",
+    )
     return parser
 
 
@@ -552,4 +594,6 @@ if __name__ == '__main__':
         include_cohort_only=args.include_cohort_only,
         should_use_budget_n_constraint=args.use_budget_n_constraint,
         output_predictions_version=args.predictions_version,
+        outreach_costs_to_evaluate=args.outreach_costs_to_evaluate_list,
+        ltv_per_member=args.ltv_per_member,
     )

@@ -1,10 +1,13 @@
 from typing import List, Optional
 
+import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
 import seaborn as sns
 import matplotlib.pyplot as plt
 from sklearn.calibration import calibration_curve
+from sklift.metrics import uplift_at_k
+from tqdm import tqdm
 
 
 def pie_plot(
@@ -197,3 +200,44 @@ def plot_calibration_curve(
     plt.legend()
     plt.grid(alpha=0.3)
     plt.show()
+
+
+def plot_uplift_at_k_trend(
+        y_retention_test: pd.Series,
+        uplift_retention_predictions_test: pd.Series,
+        treatment_test: pd.Series,
+) -> go.Figure:
+    ks = np.arange(0.05, 1.0, 0.05)
+    uplift_values = []
+
+    for k in tqdm(ks, desc='Computing uplift@k'):
+        val = uplift_at_k(
+            y_true=y_retention_test,
+            uplift=uplift_retention_predictions_test,
+            treatment=treatment_test,
+            strategy='by_group',
+            k=k if k > 0 else 0.001
+        )
+        uplift_values.append(val)
+
+    fig = go.Figure()
+
+    fig.add_trace(go.Scatter(
+        x=ks * 100,
+        y=uplift_values,
+        mode='lines+markers',
+        line=dict(width=3),
+        marker=dict(size=8),
+        name='Uplift@k'
+    ))
+
+    fig.update_layout(
+        title='Uplift@k Trend',
+        xaxis_title='Top-k [%]',
+        yaxis_title='Uplift@k',
+        template='plotly_white',
+        hovermode='x unified',
+        title_x=0.5,
+    )
+
+    return fig
