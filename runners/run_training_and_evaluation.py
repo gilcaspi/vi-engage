@@ -495,14 +495,14 @@ def run_training_and_evaluation(
 
     validate_matching_quality(X_train, t_train, X_train_m, t_train_m)
 
-    treated_retention = (1 - y_train_m[t_train_m == 1]).mean()
-    control_retention = (1 - y_train_m[t_train_m == 0]).mean()
-    ate_historical = treated_retention - control_retention
-    print(f"Current ATE (Average Treatment Effect) on matched data: {ate_historical:.3%}")
+    treated_retention_test = (1 - y_test[t_test == 1]).mean()
+    control_retention_test = (1 - y_test[t_test == 0]).mean()
+
+    ate_historical_test = treated_retention_test - control_retention_test
 
     uplift_df = pd.DataFrame({
-        MEMBER_ID_COLUMN: features_with_labels[MEMBER_ID_COLUMN],
-        "uplift": uplift_predictions_all
+        MEMBER_ID_COLUMN: pd.Series(list(X_test.index)),
+        "uplift": uplift_predictions_test
     }).sort_values(by="uplift", ascending=False)
 
     treated_optimal = uplift_df.head(actual_n)
