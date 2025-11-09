@@ -3,6 +3,7 @@ import pandas as pd
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.cluster import MiniBatchKMeans
 
+from artifacts import ARTIFACTS_DIRECTORY_PATH
 from data.raw.raw_data_column_names import MEMBER_ID_COLUMN
 from utils.data_loaders import get_web_visits_df, get_features_df
 import matplotlib.pyplot as plt
@@ -217,7 +218,13 @@ def add_semantic_web_category_features(web_visits_df: pd.DataFrame,
     out.fillna(0, inplace=True)
 
     plot_cluster_top_terms(kmeans, vectorizer, cluster_names=cluster_names, top_n=15, cols=3, figsize=(18, 10))
-    out_dir = export_cluster_wordclouds(kmeans, vectorizer, cluster_names=cluster_names, out_dir="cluster_wordclouds", top_n=150)
+    out_dir = export_cluster_wordclouds(
+        kmeans,
+        vectorizer,
+        cluster_names=cluster_names,
+        out_dir=os.path.join(ARTIFACTS_DIRECTORY_PATH, 'plots', 'cluster_wordclouds'),
+        top_n=150
+    )
     print(f"Saved word clouds to: {out_dir}")
 
     return out
