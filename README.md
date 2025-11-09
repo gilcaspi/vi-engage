@@ -169,6 +169,22 @@ Explained in Section 5.
 
 
 ## 11. Deliverables Summary
+### 11.1 Public Repository
+[🔗 GitHub Repository: gilcaspi/vi-engage](https://github.com/gilcaspi/vi-engage)
+
+### 11.2 Documentation
+**README file with setup instructions and approach description:**  
+[📄 View README.md](https://github.com/gilcaspi/vi-engage/blob/master/README.md)
+
+### 11.3 Executive Presentation
+**Tailored for non-technical stakeholders**  
+- [📎 PDF (attached version)](./artifacts/presentations/Increasing%20WellCo%20Member%20Retention%20with%20Vi%20Engage.pdf)  
+- [🌐 View latest online version](https://github.com/gilcaspi/vi-engage/blob/master/artifacts/presentations/Increasing%20WellCo%20Member%20Retention%20with%20Vi%20Engage.pdf)
+
+### 11.4 Outreach Recommendations
+**CSV file with a sorted list of top-N members for outreach**  
+- [📎 CSV (attached version)](./artifacts/predictions/latest_outreach_suggestion.csv)  
+- [🌐 View latest online version](https://github.com/gilcaspi/vi-engage/blob/master/artifacts/predictions/latest_outreach_suggestion.csv)
 
 ## 12. Next Steps 
 ### 12.1 **Improve Scoring & Ranking Method**
