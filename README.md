@@ -171,7 +171,7 @@ Explained in Section 5.
 
 ## 12. Next Steps 
 ### 12.1 **Improve Scoring & Ranking Method**
-- Integration of churn risk model & uplift model for improved prioritization
+   - Integration of churn risk model & uplift model for improved prioritization (at risk & outreach effective)
 
 ### 12.2 **Model Optimization**  
    - Evaluate alternative models  
