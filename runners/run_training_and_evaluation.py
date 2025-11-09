@@ -406,16 +406,33 @@ def run_training_and_evaluation(
         XGBClassifier(**baseline_xgb_params)
     )
 
-    uplift_model = TwoModels(
+    xgb_uplift_model = TwoModels(
         estimator_trmnt=treatment_pipeline,
         estimator_ctrl=control_pipeline,
         method='vanilla'
     )
 
-    uplift_model.fit(X_train_m, y_retention_train, treatment=t_train_m)
-    uplift_predictions_test = uplift_model.predict(X_test)
-    uplift_predictions_all = uplift_model.predict(X)
-    uplift_predictions_train_m = uplift_model.predict(X_train_m)
+    xgb_uplift_model.fit(X_train_m, y_retention_train, treatment=t_train_m)
+    uplift_predictions_test = xgb_uplift_model.predict(X_test)
+    xgb_uplift_predictions_all = xgb_uplift_model.predict(X)
+    uplift_predictions_train_m = xgb_uplift_model.predict(X_train_m)
+
+    xgb_predicted_uplift_all = pd.DataFrame({
+        MEMBER_ID_COLUMN: features_with_labels[MEMBER_ID_COLUMN],
+        "uplift": xgb_uplift_predictions_all
+    })
+    xgb_predicted_uplift_all.sort_values(by='uplift', ascending=False, inplace=True)
+    xgb_predicted_uplift_all = xgb_predicted_uplift_all.copy()
+    xgb_predicted_uplift_all['rank'] = np.arange(1, len(xgb_predicted_uplift_all) + 1)
+    xgb_predicted_uplift_all.rename(columns={'uplift': 'prioritization_score'}, inplace=True)
+    xgb_uplift_model_name = f'uplift_two_model_xgb_model'
+
+    output_xgb_uplift_all_predictions_path = os.path.join(
+        output_predictions_dir_path,
+        f'{xgb_uplift_model_name}_predictions_all_{output_predictions_version}.csv'
+    )
+    xgb_predicted_uplift_all.to_csv(output_xgb_uplift_all_predictions_path, index=False)
+
 
     qini_area = qini_auc(y=y_test.values, t=t_test.values, uplift_scores=uplift_predictions_test)
     print(f"Qini AUC (Two-Model XGB, test): {qini_area:,.2f}")
@@ -480,7 +497,7 @@ def run_training_and_evaluation(
         output_predictions_dir_path,
         f'outreach_suggestion_{output_predictions_version}.csv'
     )
-    outreach_suggestion_df = predicted_uplift_all.head(actual_n)
+    outreach_suggestion_df = xgb_predicted_uplift_all.head(actual_n)
     outreach_suggestion_df.to_csv(output_outreach_suggestion_path, index=False)
 
     ps_model, e_train = fit_propensity_model(X_train, t_train)
