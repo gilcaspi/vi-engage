@@ -5,7 +5,6 @@ from typing import List, Optional
 import joblib
 import numpy as np
 import pandas as pd
-from sklearn.calibration import CalibratedClassifierCV
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import roc_auc_score, classification_report
 from sklearn.model_selection import train_test_split
@@ -123,11 +122,11 @@ def run_training_and_evaluation(
     output_model_baseline_path = os.path.join(output_models_dir_path, f'{baseline_model_name}_{output_predictions_version}.pkl')
     joblib.dump(baseline_pipeline, output_model_baseline_path)
 
-    predicted_churn_probabilities = pd.DataFrame({
+    predicted_churn_probabilities_all = pd.DataFrame({
         MEMBER_ID_COLUMN: features_with_labels[MEMBER_ID_COLUMN],
         "churn_prob": baseline_pipeline.predict_proba(X)[:, 1]
     })
-    predicted_churn_probabilities.sort_values(by='churn_prob', ascending=False, inplace=True)
+    predicted_churn_probabilities_all.sort_values(by='churn_prob', ascending=False, inplace=True)
 
     output_predictions_dir_path = os.path.join(ARTIFACTS_DIRECTORY_PATH, 'predictions')
     os.makedirs(output_predictions_dir_path, exist_ok=True)
@@ -136,7 +135,7 @@ def run_training_and_evaluation(
         output_predictions_dir_path,
         f'{baseline_model_name}_probabilities_{output_predictions_version}.csv'
     )
-    predicted_churn_probabilities.to_csv(output_predictions_path, index=False)
+    predicted_churn_probabilities_all.to_csv(output_predictions_path, index=False)
 
     if not TEST_MODE:
         plot_calibration_curve(
@@ -201,7 +200,9 @@ def run_training_and_evaluation(
     ## Uplift all members
     treatment_proba_all = treatment_pipeline.predict_proba(X)[:, 1]
     control_proba_all = control_pipeline.predict_proba(X)[:, 1]
+
     uplift_all = control_proba_all - treatment_proba_all
+
     predicted_uplift_all = pd.DataFrame({
         MEMBER_ID_COLUMN: features_with_labels[MEMBER_ID_COLUMN],
         "uplift": uplift_all
@@ -320,7 +321,6 @@ def run_training_and_evaluation(
     uplift_sorted_all = uplift_all[sorted_indices_all]
     cum_gain_all = np.cumsum(uplift_sorted_all)
 
-    # Determine optimal n (reuse the one you already computed)
     optimal_n = int(np.argmax(cum_gain_all)) + 1
 
     fig = go.Figure()
