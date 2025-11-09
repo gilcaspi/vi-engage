@@ -153,7 +153,6 @@ Explained in Section 5.
   - Control model: $$\mathbb{P}[\text{churn = 1} \mid \text{outreach = 0}, \mathbf{X}=\mathbf{x}]$$
 
 ### 7.6 Members ranking and scoring 
-[📂 Outreach Suggestion v2](artifacts/predictions/outreach_suggestion_v2.csv)
 - Compute uplift score:
   - $$\text{uplift}(\mathbf{x}) = \mathbb{P}[\text{churn = 1} \mid \text{outreach = 0}, \mathbf{X}=\mathbf{x}] - \mathbb{P}[\text{churn = 1} \mid \text{outreach = 1}, \mathbf{X}=\mathbf{x}]$$
 - Rank members by uplift score (highest to lowest).
