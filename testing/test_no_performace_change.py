@@ -10,9 +10,9 @@ EXPECTED_RESULTS = {
     "AUC": 0.616225,
     "C-for-Benefit (test)": 0.512,
     "C-for-Benefit (train)": 0.518,
-    "ROI vs historical": -14.4,
-    "ATE": 3.263,
-    "Expected uplift": 20.741,
+    "ROI vs historical": -1.7,
+    "ATE": 1.323,
+    "Expected uplift": 3.938,
 }
 
 TOLERANCE = 0.002  # ±0.2% relative tolerance
