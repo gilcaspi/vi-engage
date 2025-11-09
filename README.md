@@ -170,17 +170,21 @@ Explained in Section 5.
 ## 11. Deliverables Summary
 
 ## 12. Next Steps 
-### 12.1 **Model Optimization**  
+### 12.1 **Improve Scoring & Ranking Method**
+- Integration of churn risk model & uplift model for improved prioritization
+
+### 12.2 **Model Optimization**  
    - Evaluate alternative models  
    - Tune hyperparameters  
    - Test alternative uplift modeling approaches  
 
-### 12.2 **Feature Enrichment**  
+### 12.3 **Feature Enrichment**  
    - Improve web page classification using LLMs  
 
-### 12.3 **Code Refactoring**  
+### 12.4 **Code Refactoring**  
    - Prepare Vi Engage for seamless integration with future clients  
 
-### 12.4 **Business Alignment**  
+### 12.5 **Business Alignment**  
    - Optimize expected ROI through a personalized outreach method for each member  
    - Requires access to WellCo’s outreach cost structure and average member value
+   - Deeper feature importance analysis to extract actionable business insights (SHAP, LIME, etc.)
