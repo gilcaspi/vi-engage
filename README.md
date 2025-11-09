@@ -34,8 +34,13 @@ https://www.python.org/downloads/release/python-31114/
     python runners/run_training_and_evaluation.py
 ```
 
-4. Artifacts and results are saved in the `artifacts/` folder.
-   1. Table with top-N members for outreach (ranked and sorted): `artifacts/predictions/latest_outreach_suggestion.csv`
+4. Report notebook with train and evaluation results: 
+```bash
+    jupyter lab final_report_notebook.ipynb
+```
+
+5.Artifacts and results are saved in the `artifacts/` folder.
+    5.1. Table with top-N members for outreach (ranked and sorted): `artifacts/predictions/latest_outreach_suggestion.csv`
 
 
 ## 2. Executive Summary
