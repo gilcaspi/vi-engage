@@ -39,3 +39,32 @@ def c_for_benefit_from_pairs(y: pd.Series, uplift: np.ndarray, pairs: List[Tuple
 
     # Count ties as half, common in concordance-style indices
     return (concordant + 0.5 * ties) / total
+
+
+def _qini_curve(y: np.ndarray, t: np.ndarray, uplift_scores: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
+    """
+    Build Qini-style cumulative uplift curve on a holdout set.
+    y: binary outcome (1=churn, 0=retain)  |  t: treatment indicator (1=treated)  |  uplift_scores: model scores (higher=more benefit from outreach)
+    Returns (x, qini) where x is 1..N prefix index and qini is cumulative uplift vs. random baseline proxy.
+    """
+    order = np.argsort(-uplift_scores)
+    y_ord = y[order]
+    t_ord = t[order]
+
+    cum_treat = (t_ord == 1).astype(int).cumsum()
+    cum_ctrl  = (t_ord == 0).astype(int).cumsum()
+
+    # Outcomes counted as "bad" (churn=1). For retention uplift we still measure the *difference* in bad outcomes.
+    cum_y_t = ((t_ord == 1) & (y_ord == 1)).astype(int).cumsum()
+    # baseline: global control churn rate among the evaluated prefix
+    ctrl_rate = ((t_ord == 0) & (y_ord == 1)).sum() / max((t_ord == 0).sum(), 1)
+
+    qini = cum_y_t - ctrl_rate * cum_treat
+    x = np.arange(1, len(qini) + 1)
+    return x, qini
+
+
+def qini_auc(y: np.ndarray, t: np.ndarray, uplift_scores: np.ndarray) -> float:
+    x, q = _qini_curve(y, t, uplift_scores)
+    # Trapezoidal area under the Qini curve
+    return float(np.trapz(q, x))
