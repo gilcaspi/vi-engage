@@ -31,7 +31,8 @@ def get_arg_parser() -> argparse.ArgumentParser:
 
 
 if __name__ == "__main__":
-    args = get_arg_parser().parse_args()
+    args_parser = get_arg_parser()
+    args = args_parser.parse_args()
 
     print(f"Generating features (version={args.features_version})")
     features_df = generate_features()

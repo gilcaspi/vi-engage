@@ -1,3 +1,4 @@
+import argparse
 import os
 
 import joblib
@@ -21,12 +22,9 @@ from xgboost import XGBClassifier
 import plotly.io as pio
 
 from utils.explain_model import plot_logistic_regression_importance
-from utils.plot_utils import plot_feature_correlation_heatmap
+from utils.plot_utils import plot_feature_correlation_heatmap, plot_calibration_curve
 
 pio.renderers.default = "browser"
-
-from sklearn.calibration import calibration_curve
-import matplotlib.pyplot as plt
 
 from utils.metrics import c_for_benefit_from_pairs
 
@@ -39,23 +37,6 @@ if TEST_MODE:
 def safe_show(fig: go.Figure):
     if not TEST_MODE:
         fig.show()
-
-
-def plot_calibration_curve(
-        y_ground_truth: pd.Series,
-        y_estimated_probability: pd.Series,
-        model_name: str='Model'
-) -> None:
-    prob_true, prob_pred = calibration_curve(y_ground_truth, y_estimated_probability, n_bins=10)
-    plt.plot(prob_pred, prob_true, marker='o', label=model_name)
-    plt.plot([0, 1], [0, 1], '--', color='orange', label='Perfect calibration')
-    plt.legend()
-    plt.title("Calibration Curve", fontsize=14)
-    plt.xlabel("Predicted Probability", fontsize=12)
-    plt.ylabel("Observed Churn Rate", fontsize=12)
-    plt.legend()
-    plt.grid(alpha=0.3)
-    plt.show()
 
 
 def run_training_and_evaluation(
@@ -531,5 +512,34 @@ def run_training_and_evaluation(
     print(f"Improvement over historical: {delta_vs_historical:.3%} ({improvement_ratio:.2f}x)")
 
 
+def get_args_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(description="Run training and evaluation pipeline.")
+    parser.add_argument(
+        "--features_version",
+        type=str,
+        default="v2",
+        help="Version of the features to use.",
+    )
+    parser.add_argument(
+        "--include_cohort_only",
+        action="store_true",
+        help="Whether to include only cohort members.",
+    )
+    parser.add_argument(
+        "--use_budget_n_constraint",
+        action="store_true",
+        default=True,
+        help="Whether to use budget n constraint in uplift evaluation.",
+    )
+    return parser
+
+
 if __name__ == '__main__':
-  run_training_and_evaluation()
+    args_parser = get_args_parser()
+    args = args_parser.parse_args()
+
+    run_training_and_evaluation(
+        features_version=args.features_version,
+        include_cohort_only=args.include_cohort_only,
+        should_use_budget_n_constraint=args.use_budget_n_constraint,
+    )

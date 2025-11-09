@@ -4,6 +4,7 @@ import pandas as pd
 import plotly.graph_objects as go
 import seaborn as sns
 import matplotlib.pyplot as plt
+from sklearn.calibration import calibration_curve
 
 
 def pie_plot(
@@ -178,4 +179,21 @@ def plot_feature_correlation_heatmap(df: pd.DataFrame, title="Feature Correlatio
     )
     plt.title(title, fontsize=16, weight="bold")
     plt.tight_layout()
+    plt.show()
+
+
+def plot_calibration_curve(
+        y_ground_truth: pd.Series,
+        y_estimated_probability: pd.Series,
+        model_name: str='Model'
+) -> None:
+    prob_true, prob_pred = calibration_curve(y_ground_truth, y_estimated_probability, n_bins=10)
+    plt.plot(prob_pred, prob_true, marker='o', label=model_name)
+    plt.plot([0, 1], [0, 1], '--', color='orange', label='Perfect calibration')
+    plt.legend()
+    plt.title("Calibration Curve", fontsize=14)
+    plt.xlabel("Predicted Probability", fontsize=12)
+    plt.ylabel("Observed Churn Rate", fontsize=12)
+    plt.legend()
+    plt.grid(alpha=0.3)
     plt.show()
