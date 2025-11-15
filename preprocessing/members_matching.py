@@ -7,6 +7,7 @@ from sklearn.neighbors import NearestNeighbors
 from sklearn.pipeline import make_pipeline
 from sklearn.preprocessing import StandardScaler
 from causallib.utils.stat_utils import calc_weighted_standardized_mean_differences as calc_smd
+from utils.plot_utils import plot_propensity_score_distribution
 
 
 EPSILON = 1e-6
@@ -69,7 +70,12 @@ def match_on_propensity(e: np.ndarray, t:np.ndarray, caliper='auto', replace=Fal
     return matched_idx, pairs
 
 
-def matching_members(X_train: pd.DataFrame, t_train: pd.Series, y_train: pd.Series):
+def matching_members(
+        X_train: pd.DataFrame,
+        t_train: pd.Series,
+        y_train: pd.Series,
+        should_plot: bool = False,
+):
     ps_model, e_train = fit_propensity_model(X_train, t_train)
     matched_idx, pairs = match_on_propensity(
         e=np.array(e_train),
@@ -82,6 +88,21 @@ def matching_members(X_train: pd.DataFrame, t_train: pd.Series, y_train: pd.Seri
     y_train_m = y_train.iloc[matched_idx]
     t_train_m = t_train.iloc[matched_idx]
 
+
+    if should_plot:
+        _, ps_after_matching = fit_propensity_model(X_train_m, t_train_m)
+
+        plot_propensity_score_distribution(
+            propensity_scores=e_train,
+            treatment=t_train,
+            title="Before Matching - Propensity Score Distribution: Treated vs Control"
+        )
+
+        plot_propensity_score_distribution(
+            propensity_scores=ps_after_matching,
+            treatment=t_train_m,
+            title="After Matching - Propensity Score Distribution: Treated vs Control"
+        )
 
     print(f"Matched train size: {len(X_train_m)} "
           f"(pairs: {len(pairs)}, treated: {sum(1 == t_train_m)}, control: {sum(0 == t_train_m)})")

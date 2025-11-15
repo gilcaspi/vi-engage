@@ -241,3 +241,23 @@ def plot_uplift_at_k_trend(
     )
 
     return fig
+
+
+def plot_propensity_score_distribution(
+        propensity_scores: np.ndarray,
+        treatment: pd.Series,
+        title: Optional[str] = None
+) -> None:
+    sns.kdeplot(propensity_scores[treatment == 1], label='Treated', fill=True)
+    sns.kdeplot(propensity_scores[treatment == 0], label='Control', fill=True)
+
+    if title is None:
+        title = "Propensity Score Distribution: Treated vs Control"
+
+    plt.title(title)
+    plt.xlabel("Propensity Score")
+    plt.ylabel("Density")
+
+    plt.legend(title="Group")
+    plt.tight_layout()
+    plt.show()

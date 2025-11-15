@@ -83,7 +83,12 @@ def run_training_and_evaluation(
         random_state=42
     )
 
-    X_train_m, t_train_m, y_train_m, matched_idx_train, pairs_train = matching_members(X_train, t_train, y_train)
+    X_train_m, t_train_m, y_train_m, matched_idx_train, pairs_train = matching_members(
+        X_train,
+        t_train,
+        y_train,
+        should_plot=True
+    )
 
     if not TEST_MODE:
         plot_feature_correlation_heatmap(X_train_m, "Correlation Heatmap - Matched Train Set")
