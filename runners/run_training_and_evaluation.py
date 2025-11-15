@@ -176,10 +176,13 @@ def run_training_and_evaluation(
         y_train_m[t_train_m == 0],
     )
 
-    treatment_proba_test = treatment_pipeline.predict_proba(X_test)[:, 1]
-    control_proba_test = control_pipeline.predict_proba(X_test)[:, 1]
+    predicted_churn_proba_given_treated_on_test = treatment_pipeline.predict_proba(X_test)[:, 1]
+    predicted_churn_proba_given_control_on_test = control_pipeline.predict_proba(X_test)[:, 1]
 
-    uplift_test = control_proba_test - treatment_proba_test
+    predicted_retention_uplift_on_test = (
+            predicted_churn_proba_given_control_on_test - predicted_churn_proba_given_treated_on_test
+    )
+
     uplift_model_name = f'uplift_logistic_regression_model'
     output_model_uplift_path = os.path.join(
         output_models_dir_path,
@@ -190,40 +193,42 @@ def run_training_and_evaluation(
         "control_model": control_pipeline,
     }, output_model_uplift_path)
 
-    predicted_uplift_test = pd.DataFrame({
+    predicted_retention_uplift_test_df = pd.DataFrame({
         MEMBER_ID_COLUMN: features_with_labels.loc[X_test.index, MEMBER_ID_COLUMN].values,
-        "uplift": uplift_test
+        "uplift": predicted_retention_uplift_on_test
     })
-    predicted_uplift_test.sort_values(by='uplift', ascending=False, inplace=True)
+    predicted_retention_uplift_test_df.sort_values(by='uplift', ascending=False, inplace=True)
 
     output_uplift_predictions_path = os.path.join(
         output_predictions_dir_path,
         f'{uplift_model_name}_predictions_{output_predictions_version}.csv'
     )
-    predicted_uplift_test.to_csv(output_uplift_predictions_path, index=False)
+    predicted_retention_uplift_test_df.to_csv(output_uplift_predictions_path, index=False)
 
     ## Uplift all members
-    treatment_proba_all = treatment_pipeline.predict_proba(X)[:, 1]
-    control_proba_all = control_pipeline.predict_proba(X)[:, 1]
+    predicted_churn_proba_given_treated_on_all = treatment_pipeline.predict_proba(X)[:, 1]
+    predicted_churn_proba_given_control_on_all = control_pipeline.predict_proba(X)[:, 1]
 
-    uplift_all = control_proba_all - treatment_proba_all
+    predicted_retention_uplift_on_all = (
+            predicted_churn_proba_given_control_on_all - predicted_churn_proba_given_treated_on_all
+    )
 
-    predicted_uplift_all = pd.DataFrame({
+    predicted_retention_uplift_on_all_df = pd.DataFrame({
         MEMBER_ID_COLUMN: features_with_labels[MEMBER_ID_COLUMN],
-        "uplift": uplift_all
+        "uplift": predicted_retention_uplift_on_all
     })
-    predicted_uplift_all.sort_values(by='uplift', ascending=False, inplace=True)
-    predicted_uplift_all = predicted_uplift_all.copy()
-    predicted_uplift_all['rank'] = np.arange(1, len(predicted_uplift_all) + 1)
-    predicted_uplift_all.rename(columns={'uplift': 'prioritization_score'}, inplace=True)
+    predicted_retention_uplift_on_all_df.sort_values(by='uplift', ascending=False, inplace=True)
+    predicted_retention_uplift_on_all_df = predicted_retention_uplift_on_all_df.copy()
+    predicted_retention_uplift_on_all_df['rank'] = np.arange(1, len(predicted_retention_uplift_on_all_df) + 1)
+    predicted_retention_uplift_on_all_df.rename(columns={'uplift': 'prioritization_score'}, inplace=True)
 
     output_uplift_all_predictions_path = os.path.join(
         output_predictions_dir_path,
         f'{uplift_model_name}_predictions_all_{output_predictions_version}.csv'
     )
-    predicted_uplift_all.to_csv(output_uplift_all_predictions_path, index=False)
+    predicted_retention_uplift_on_all_df.to_csv(output_uplift_all_predictions_path, index=False)
 
-    order_test = np.argsort(-uplift_test)
+    order_test = np.argsort(-predicted_retention_uplift_on_test)
     y_ordered_test = y_test.values[order_test]
     t_ordered_test = t_test.values[order_test]
 
@@ -247,7 +252,7 @@ def run_training_and_evaluation(
     ## Uplift with cost and value assumptions
     for v in [ltv_per_member]:
         for c in outreach_costs_to_evaluate:
-            uplift_sorted_all = np.sort(uplift_all)[::-1]
+            uplift_sorted_all = np.sort(predicted_retention_uplift_on_all)[::-1]
             net_curve = np.cumsum(v * uplift_sorted_all - c)
             optimal_n = int(np.argmax(net_curve)) + 1
 
@@ -286,7 +291,7 @@ def run_training_and_evaluation(
 
     fig = go.Figure()
     fig.add_trace(go.Histogram(
-        x=uplift_all,
+        x=predicted_retention_uplift_on_all,
         nbinsx=50,
         marker=dict(
             color='rgba(0, 102, 204, 0.7)',
@@ -297,18 +302,18 @@ def run_training_and_evaluation(
     ))
 
     fig.add_vline(
-        x=np.mean(uplift_all),
+        x=np.mean(predicted_retention_uplift_on_all),
         line_dash="dash",
         line_color="orange",
-        annotation_text=f"Mean = {np.mean(uplift_all):.3f}",
+        annotation_text=f"Mean = {np.mean(predicted_retention_uplift_on_all):.3f}",
         annotation_position="top right"
     )
 
     fig.add_vline(
-        x=np.median(uplift_all),
+        x=np.median(predicted_retention_uplift_on_all),
         line_dash="dot",
         line_color="green",
-        annotation_text=f"Median = {np.median(uplift_all):.3f}",
+        annotation_text=f"Median = {np.median(predicted_retention_uplift_on_all):.3f}",
         annotation_position="top left"
     )
 
@@ -330,8 +335,8 @@ def run_training_and_evaluation(
     fig.update_yaxes(showgrid=True, gridcolor='lightgray', zeroline=False)
 
     # Sort uplift descending
-    sorted_indices_all = np.argsort(-uplift_all)
-    uplift_sorted_all = uplift_all[sorted_indices_all]
+    sorted_indices_all = np.argsort(-predicted_retention_uplift_on_all)
+    uplift_sorted_all = predicted_retention_uplift_on_all[sorted_indices_all]
     cum_gain_all = np.cumsum(uplift_sorted_all)
 
     optimal_n = int(np.argmax(cum_gain_all)) + 1
@@ -453,8 +458,8 @@ def run_training_and_evaluation(
     uplift_train_full = np.full(len(X_train), np.nan, dtype=float)
     uplift_train_full[matched_idx_train] = uplift_predictions_train_m
 
-    sorted_indices_all = np.argsort(-uplift_all)
-    uplift_sorted_all = uplift_all[sorted_indices_all]
+    sorted_indices_all = np.argsort(-predicted_retention_uplift_on_all)
+    uplift_sorted_all = predicted_retention_uplift_on_all[sorted_indices_all]
     cum_gain_all = np.cumsum(uplift_sorted_all)
 
     optimal_n = int(np.argmax(cum_gain_all)) + 1
