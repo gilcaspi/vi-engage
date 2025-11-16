@@ -458,8 +458,8 @@ def run_training_and_evaluation(
     uplift_train_full = np.full(len(X_train), np.nan, dtype=float)
     uplift_train_full[matched_idx_train] = uplift_predictions_train_m
 
-    sorted_indices_all = np.argsort(-predicted_retention_uplift_on_all)
-    uplift_sorted_all = predicted_retention_uplift_on_all[sorted_indices_all]
+    sorted_indices_all = np.argsort(-xgb_uplift_predictions_all)
+    uplift_sorted_all = xgb_uplift_predictions_all[sorted_indices_all]
     cum_gain_all = np.cumsum(uplift_sorted_all)
 
     optimal_n = int(np.argmax(cum_gain_all)) + 1
