@@ -8,7 +8,7 @@ import pandas as pd
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import roc_auc_score, classification_report
 from sklearn.model_selection import train_test_split
-from sklearn.pipeline import make_pipeline
+from sklearn.pipeline import make_pipeline, Pipeline
 from sklearn.preprocessing import StandardScaler
 import plotly.graph_objects as go
 from artifacts import ARTIFACTS_DIRECTORY_PATH
@@ -22,7 +22,7 @@ from xgboost import XGBClassifier
 
 import plotly.io as pio
 
-from utils.explain_model import plot_logistic_regression_importance
+from utils.explain_model import plot_logistic_regression_importance, compute_uplift_shap
 from utils.plot_utils import plot_feature_correlation_heatmap, plot_calibration_curve, plot_uplift_at_k_trend
 
 pio.renderers.default = "browser"
@@ -448,15 +448,15 @@ def run_training_and_evaluation(
         eval_metric='logloss',
     )
 
-    treatment_pipeline = make_pipeline(
-        StandardScaler(),
-        XGBClassifier(**baseline_xgb_params)
-    )
+    treatment_pipeline = Pipeline([
+        ("preprocessor", StandardScaler()),
+        ("model", XGBClassifier(**baseline_xgb_params)),
+    ])
 
-    control_pipeline = make_pipeline(
-        StandardScaler(),
-        XGBClassifier(**baseline_xgb_params)
-    )
+    control_pipeline = Pipeline([
+        ("preprocessor", StandardScaler()),
+        ("model", XGBClassifier(**baseline_xgb_params)),
+    ])
 
     xgb_uplift_model = TwoModels(
         estimator_trmnt=treatment_pipeline,
@@ -491,6 +491,13 @@ def run_training_and_evaluation(
         predicted_retention_uplift_on_all=xgb_uplift_predictions_all,
         model_name='Two-Model XGB Uplift Model',
         budget_n=budget_n,
+    )
+
+    compute_uplift_shap(
+        model_control_pipeline=xgb_uplift_model.estimator_ctrl,
+        model_treatment_pipeline=xgb_uplift_model.estimator_trmnt,
+        X=X_test,
+        plot=True,
     )
 
     qini_area = qini_auc(y=y_test.values, t=t_test.values, uplift_scores=xgb_uplift_predictions_test)
