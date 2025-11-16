@@ -39,10 +39,75 @@ def safe_show(fig: go.Figure):
         fig.show()
 
 
+def calculate_roi(
+        ltv_per_member: float,
+        outreach_costs_to_evaluate: List[float],
+        predicted_retention_uplift_on_all: np.ndarray,
+        model_name: str = 'uplift_baseline',
+        budget_n: Optional[int] = None,
+) -> None:
+    for v in [ltv_per_member]:
+        for c in outreach_costs_to_evaluate:
+            uplift_sorted_all = np.sort(predicted_retention_uplift_on_all)[::-1]
+            net_curve = np.cumsum(v * uplift_sorted_all - c)
+            optimal_n = int(np.argmax(net_curve)) + 1
+
+
+            best_net_value = net_curve[optimal_n - 1]
+            roi = best_net_value / (c * optimal_n) if c * optimal_n > 0 else float('inf')
+
+            print("-" * 60)
+            print(model_name)
+            print(f"Optimal n considering cost({c}) = {optimal_n}")
+            print(f"[Cost={c}, Value={v}] ROI at optimal n: {roi:.2f}x | Expected net gain: ${best_net_value:.2f}")
+            print("-" * 60)
+
+            fig = go.Figure()
+            fig.add_trace(go.Scatter(
+                x=np.arange(1, len(net_curve) + 1),
+                y=net_curve,
+                mode='lines',
+                name='Cumulative Net Value',
+                line=dict(width=2)
+            ))
+            fig.add_vline(
+                x=optimal_n,
+                line_dash="dash",
+                line_color="green",
+                annotation_text=f"Optimal n = {optimal_n}",
+                annotation_position="top right"
+            )
+
+            if budget_n is not None:
+                fig.add_vline(
+                    x=budget_n,
+                    line_dash="dash",
+                    line_color="blue",
+                    annotation_text=f"Budget n = {budget_n}",
+                    annotation_position="top right"
+                )
+            fig.update_layout(
+                title=dict(
+                    text=f"{model_name} - Net Value vs. n (Cost = {c}, Value per uplift unit = {v})",
+                    x=0.5,
+                    xanchor="center",
+                    font=dict(size=20, family="Arial Black")
+                ),
+                xaxis_title="Number of Members Outreached (sorted by uplift)",
+                yaxis_title="Cumulative Net Value (USD)",
+                template="plotly_white",
+            )
+
+            fig.update_xaxes(showgrid=True, gridcolor='lightgray', zeroline=False)
+            fig.update_yaxes(showgrid=True, gridcolor='lightgray', zeroline=False)
+
+            safe_show(fig)
+
+
 def run_training_and_evaluation(
         features_version: str = 'v2',
         include_cohort_only: bool = False,
-        should_use_budget_n_constraint: bool = True,
+        budget_n: Optional[int] = 3959,
         output_predictions_version: str = 'v2',
         outreach_costs_to_evaluate: Optional[List[float]] = None,
         ltv_per_member: float = 100.0,
@@ -249,45 +314,13 @@ def run_training_and_evaluation(
     print(f"Optimal k (% of population): {optimal_k_percent:.2f}%")
     print(f"Qini @ optimal n: {qini[optimal_n - 1]:.2f}")
 
-    ## Uplift with cost and value assumptions
-    for v in [ltv_per_member]:
-        for c in outreach_costs_to_evaluate:
-            uplift_sorted_all = np.sort(predicted_retention_uplift_on_all)[::-1]
-            net_curve = np.cumsum(v * uplift_sorted_all - c)
-            optimal_n = int(np.argmax(net_curve)) + 1
-
-
-            best_net_value = net_curve[optimal_n - 1]
-            roi = best_net_value / (c * optimal_n) if c * optimal_n > 0 else float('inf')
-
-            print("-" * 60)
-            print(f"Optimal n considering cost({c}) = {optimal_n}")
-            print(f"[Cost={c}, Value={v}] ROI at optimal n: {roi:.2f}x | Expected net gain: ${best_net_value:.2f}")
-            print("-" * 60)
-
-            fig = go.Figure()
-            fig.add_trace(go.Scatter(
-                x=np.arange(1, len(net_curve) + 1),
-                y=net_curve,
-                mode='lines',
-                name='Cumulative Net Value',
-                line=dict(width=2)
-            ))
-            fig.add_vline(
-                x=optimal_n,
-                line_dash="dash",
-                line_color="red",
-                annotation_text=f"Optimal n = {optimal_n}",
-                annotation_position="top right"
-            )
-            fig.update_layout(
-                title=f"Net Value vs. n (Cost = {c}, Value per uplift unit = {v})",
-                title_x=0.5,
-                xaxis_title="Number of Members Outreached (sorted by uplift)",
-                yaxis_title="Cumulative Net Value (USD)",
-                template="plotly_white",
-            )
-            safe_show(fig)
+    calculate_roi(
+        ltv_per_member=ltv_per_member,
+        outreach_costs_to_evaluate=outreach_costs_to_evaluate,
+        predicted_retention_uplift_on_all=predicted_retention_uplift_on_all,
+        model_name='Baseline Uplift Logistic Regression Model',
+        budget_n=budget_n
+    )
 
     fig = go.Figure()
     fig.add_trace(go.Histogram(
@@ -451,6 +484,13 @@ def run_training_and_evaluation(
     )
     xgb_predicted_uplift_all.to_csv(output_xgb_uplift_all_predictions_path, index=False)
 
+    calculate_roi(
+        ltv_per_member=ltv_per_member,
+        outreach_costs_to_evaluate=outreach_costs_to_evaluate,
+        predicted_retention_uplift_on_all=xgb_uplift_predictions_all,
+        model_name='Two-Model XGB Uplift Model',
+        budget_n=budget_n,
+    )
 
     qini_area = qini_auc(y=y_test.values, t=t_test.values, uplift_scores=xgb_uplift_predictions_test)
     print(f"Qini AUC (Two-Model XGB, test): {qini_area:,.2f}")
@@ -464,9 +504,8 @@ def run_training_and_evaluation(
 
     optimal_n = int(np.argmax(cum_gain_all)) + 1
     actual_n = optimal_n
-    budget_n = 3959
 
-    if should_use_budget_n_constraint:
+    if budget_n is not None:
         actual_n = budget_n
 
     print(f"Final optimal n = {optimal_n}")
@@ -546,8 +585,8 @@ def run_training_and_evaluation(
     print(f"Retention gain = {delta_retention:.3f} ({uplift_percent:.2f}% improvement)")
     print(f"Predicted retention = {simulated_retention_rate: .3f} vs. Current retention = {actual_retention_rate: .3f}")
 
-    roi_model = (v * delta_retention * len(y_test) - c * actual_n) / (
-            c * actual_n)
+    roi_model = (ltv_per_member * delta_retention * len(y_test) - outreach_costs_to_evaluate[-1] * actual_n) / (
+            outreach_costs_to_evaluate[-1] * actual_n)
     print(f"ROI vs historical: {roi_model:.1f}x")
 
     validate_matching_quality(X_train, t_train, X_train_m, t_train_m)
@@ -624,10 +663,14 @@ if __name__ == '__main__':
     args_parser = get_args_parser()
     args = args_parser.parse_args()
 
+    budget_in_number_of_members_to_outreach = None
+    if args.use_budget_n_constraint:
+        budget_in_number_of_members_to_outreach = 3959
+
     run_training_and_evaluation(
         features_version=args.features_version,
         include_cohort_only=args.include_cohort_only,
-        should_use_budget_n_constraint=args.use_budget_n_constraint,
+        budget_n=budget_in_number_of_members_to_outreach,
         output_predictions_version=args.predictions_version,
         outreach_costs_to_evaluate=args.outreach_costs_to_evaluate_list,
         ltv_per_member=args.ltv_per_member,
