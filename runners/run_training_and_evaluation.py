@@ -175,14 +175,15 @@ def run_training_and_evaluation(
     print("ROC AUC:", roc_auc_score(y_train_m, y_train_m_churn_proba))
     print("-" * 80)
 
-    importance_df, fig = plot_logistic_regression_importance(
-        model=baseline_pipeline,
-        X_train=X_train_m,
-        output_dir=os.path.join(ARTIFACTS_DIRECTORY_PATH, "explainability"),
-        top_n=30,
-        model_name="baseline_logistic_regression"
-    )
-    safe_show(fig)
+    for top_n_features in [10, 30]:
+        importance_df, fig = plot_logistic_regression_importance(
+            model=baseline_pipeline,
+            X_train=X_train_m,
+            output_dir=os.path.join(ARTIFACTS_DIRECTORY_PATH, "explainability"),
+            top_n=top_n_features,
+            model_name="baseline_logistic_regression"
+        )
+        safe_show(fig)
 
     baseline_model_name = f'baseline_logistic_regression_model'
 
